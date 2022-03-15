@@ -1,0 +1,34 @@
+Options:
+  -R, --recursive       Search input directories recursively for files
+                        matching the input filenames.
+
+  -n, --dry-run         Make no changes, but report which files would be
+                        changed if run without this option.
+
+  -x, --extensions=EXT  Specifies a comma-separated list of file extensions.
+                        When searching a directory, only files having one of
+                        these extensions will be processed.  If not specified,
+                        all extensions associated with a language are checked.
+                        Extensions are case-insensitive, except when longer
+                        than 128 bytes.
+
+  -b, --break-on-fail   Stop processing additional inputs after the first
+                        failure.
+
+  --depfile=PATH        Outputs included scripts and templates to a `gcc -MMD`
+                        style dependency file.
+
+  --test                Ignores other options, outputs nothing, and exits.
+
+  -v, --verbose         Log more information about files being processed.
+
+  -q, --quiet           Only log errors.
+
+  -V, --version         Prints version information.
+
+  -?, --help            Prints this help message.  --help provides more
+                        detailed information.
+
+  --                    Stops processing options.  All remaining args will be
+                        considered input filename patterns, even if they start
+                        with '-'.

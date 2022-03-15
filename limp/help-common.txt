@@ -1,0 +1,10 @@
+Usage:
+  limp [OPTIONS] [--] [INPUTS]
+
+The Lua Inline Metaprogramming Processor (LIMP) looks for specially
+constructed comments in source code, executes them as Lua scripts, and
+inserts or replaces the results in the original source file.
+
+You can find the latest version of this tool at:
+https://github.com/bcrist/limp
+

@@ -1,0 +1,6 @@
+
+Exit Codes:
+  0: There were no errors.
+  1: An unknown error occurred.
+  2: There was a problem parsing one or more command line arguments.
+  4: There was a problem processing an input file.
