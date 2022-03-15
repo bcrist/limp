@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const allocators = @import("allocators.zig");
 const temp_alloc = allocators.temp_arena.allocator();
 const languages = @import("languages.zig");
@@ -90,7 +91,9 @@ pub const Processor = struct {
                     }
                 }
             } else {
-                if (num_lf >= num_cr) {
+                if (num_lf == 0 and num_cr == 0 and num_crlf == 0) {
+                    return if (builtin.os.tag == .windows) "\r\n" else "\n";
+                } else if (num_lf >= num_cr) {
                     if (num_lf >= num_crlf) {
                         return "\n";
                     } else {
@@ -343,6 +346,8 @@ pub const Processor = struct {
             try l.pushGlobal("_finish");
             try l.call(0, 1);
             var raw_output = l.getString(-1, "");
+
+            l.setTop(0);
 
             // make sure output ends with a newline
             var output = try temp_alloc.alloc(u8, raw_output.len + section.newline_style.len);

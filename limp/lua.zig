@@ -178,7 +178,7 @@ pub const State = struct {
     }
 
     pub inline fn moveToIndex(self: State, index: c_int) void {
-        return c.lua_rotate(self.l, index, 1);
+        c.lua_rotate(self.l, index, 1);
     }
 
     // This is only safe when removing an index that isn't to-be-closed
@@ -189,6 +189,10 @@ pub const State = struct {
 
     pub inline fn getTop(self: State) c_int {
         return c.lua_gettop(self.l);
+    }
+
+    pub inline fn setTop(self: State, index: c_int) void {
+        c.lua_settop(self.l, index);
     }
 
     pub fn getString(self: State, index: i8, default: []const u8) []const u8 {
