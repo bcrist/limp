@@ -148,29 +148,93 @@ Equivalent to `write(get_indent())`.  Normally you don't need to call this direc
 
 Returns a copy of `str` with newlines normalized, and each new line having `get_indent()` prepended.
 
-    function fs.absolute_path ()
-    function fs.canonical_path ()
-    function fs.compose_path ()
-    function fs.compose_path_slash ()
-    function fs.parent_path ()
-    function fs.ancestor_relative_path ()
-    function fs.resolve_path ()
-    function fs.path_stem ()
-    function fs.path_filename ()
-    function fs.path_extension ()
-    function fs.replace_extension ()
+    function fs.absolute_path (path)
+
+If `path` is already an absolute path, it is returned unchanged, otherwise an absolute path is constructed as if by calling `fs.compose_path(fs.cwd(), path)`.  This function does not access the filesystem.
+
+    function fs.canonical_path (path)
+
+Converts `path` to an absolute path (if necessary) and resolves any `..`, `.`, or symlink segments.  An error is thrown if the path does not exist or can't be accessed.
+
+    function fs.compose_path (...)
+
+Joins each of the provided path parts into a single path, using a directory separator appropriate for the current platform (including converting any directory separators inside the path strings).  Only the first parameter may be an absolute path (but isn't required to be).  This function does not access the filesystem.
+
+    function fs.compose_path_slash (...)
+
+Same as `fs.compose_path(...)` but always uses `/` as a separator, even on Windows.
+
+    function fs.parent_path (path)
+
+Removes the filename or final directory name from a path.  If the path is a root path, an empty string is returned.  This function does not access the filesystem.
+
+    function fs.ancestor_relative_path (child, ancestor)
+
+Returns a path to `child` relative to the `ancestor` path, if the `child` path's starting segments are identical to `ancestor`.  Otherwise, returns `child` unchanged.  If both paths are the same, `.` is returned.  If one path contains `..`, symlinks, etc. that do not appear in the other path, yet they are actually equivalent, this function will not be able to generate a relative path.  This function does not access the filesystem.
+
+    function fs.resolve_path (path, search, include_cwd = false)
+
+Looks for an existing path in one or more directories and returns the first one it finds.  If `search` is a path, that directory is searched.  If `search` is a table, each value contained in it is searched.  Use integer keys to ensure a consistent search order.  Finally if no match has been found yet and `include_cwd` is true, the current directory is searched.
+
+    function fs.path_stem (path)
+
+Extracts the base filename from `path`, removing any file extension, parent directories, or path separators.  This function does not access the filesystem.
+
+    function fs.path_filename (path)
+
+Extracts the base filename from `path`, removeing parent directories or path separators.  This function does not access the filesystem.
+
+    function fs.path_extension (path)
+
+Extracts the file extension from `path`, including the preceeding `.`, or the empty string if the filename has no `.` characters.  This function does not access the filesystem.
+
+    function fs.replace_extension (path, new_ext)
+
+Removes the current extension (if any) from `path` and then adds on `new_ext`.  This function does not access the filesystem.
+
     function fs.cwd ()
-    function fs.set_cwd ()
-    function fs.stat ()
-    function fs.get_file_contents ()
-    function fs.put_file_contents ()
 
-TODO
+Returns the current working directory (generally the path containing the file being processed, unless `set_cwd()` has been used).
 
-    function util.deflate ()
-    function util.inflate ()
+    function fs.set_cwd (path)
 
-TODO
+Sets the current working directory to a new path.  Note this will be reset each time a new file is processed.
+
+    function fs.stat (path)
+
+Returns an object containing size, timestamps, type, kind, and mode/permissions for a file or directory.  If the file/directory does not exist, the kind will be an empty string, and all other properties will be 0.
+
+    function fs.get_file_contents (path)
+
+Fully reads the contents of a file into a string.
+
+    function fs.put_file_contents (path, data)
+
+Writes a string to a file.  If the file already exists, it will be replaced.
+
+    function fs.move (src, dest, force = false)
+
+Renames a file or directory.  If `dest` already exists it will only be overwritten if it is the same kind as `src` (i.e. both files or directories) and `force` is true.
+
+    function fs.copy (src, dest, force = false)
+
+Copies a file or directory.  If `dest` already exists it will only be overwritten if it is the same kind as `src` (i.e. both files or directories) and `force` is true.  When "overwriting" a directory, files in the old directory will only be replaced if they also exist in the source directory.
+
+    function fs.delete (path, recursive = false)
+
+Deletes a file or directory.  If `recursive` is true, a directory can be deleted even if it is not empty.
+
+    function fs.ensure_dir_exists (path)
+
+Creates any directories necessary to ensure that `path` exists and is a directory.  Throws an error if not possible due to a file existing with a conflicting name.
+
+    function util.deflate (uncompressed, level = 8, encode_length = false)
+
+Returns a zlib-compressed version of the `uncompressed` string.  If `encode_length` is true, an extra 8 bytes are prepended indicating the original uncompressed length of `data`, which is needed for `util.inflate()`.
+
+    function util.inflate (compressed, uncompressed_length = nil)
+
+Decompresses zlib-compressed data.  If `uncompressed_length` is not provided, the compressed data must have been generated by `util.deflate(?, ?, true)`.
 
     function trim_trailing_ws (str)
 
@@ -207,7 +271,7 @@ The path to the file containing the LIMP being processed.
 
     limprc_path
 
-The path to the `.limprc` file that was executed.
+The path to the `.limprc` file that was executed.  If multiple `.limprc` files have been run (due to `import_limprc` being called again), only the most recent path is reflected here.
 
     comment_begin
     comment_end
@@ -236,15 +300,36 @@ The detected character(s) that should be used to indicate a new line; `\n`, `\r`
 
 A string containing a single backtick character.
 
+    function dependency (path)
     function get_depfile_target ()
     function write_depfile ()
-    function dependency (path)
+
+Not yet implemented.
+
     function load_file (path, chunk_name)
+
+Similar to the Lua built-in `loadfile(path)` but the loaded file is marked as a dependency of the currently processing file.
+
     function get_file_contents (path)
-    function register_include_dir (path)
+
+Identical to `fs.get_file_contents (path)` but the file is marked as a dependency of the currently processing file.
+
     function include (include_name)
+
+Searches all currently registered include paths and the current directory for a `.lua` file with the specified name and executes it.  The name provided does not need to include the `.lua` extension.
+
+    function register_include_dir (path)
+
+Adds a new path to search for `.lua` files when attempting to resolve `include(...)` calls.  Normally this would be used in a `.limprc` file to set up 
+
     function get_include (include_name)
+
+Same as `include(...)` except instead of running the included chunk, it is returned as a function.
+
     function resolve_include_path (path)
+
+Searches for the provided path among all current include paths, using `fs.resolve_path()`.  This can be useful to find other types of files that live "next to" an included Lua script.
+
     function import_limprc (path)
 
-TODO
+Searches for a `.limprc` file in the provided path, or a parent of that path, and executes it.  This will be called automatically when processing a new file, but you can chain `.limprc` files together by putting `import_limprc(fs.parent_path(limprc_path))` inside a `.limprc` file in a subdirectory of the project's root.
