@@ -327,6 +327,41 @@ fn compareDiskDesignators(kind: WindowsPath.Kind, p1: []const u8, p2: []const u8
     }
 }
 
+const CopyTreeError = error {SystemResources} || std.os.CopyFileRangeError || std.os.SendFileError || std.os.RenameError || std.os.OpenError;
+
+pub fn copyTree(source_dir: std.fs.Dir, source_path: []const u8, dest_dir: std.fs.Dir, dest_path: []const u8, options: std.fs.CopyFileOptions) CopyTreeError!void {
+    // TODO figure out how to handle symlinks better
+    source_dir.copyFile(source_path, dest_dir, dest_path, options) catch |err| switch (err) {
+        error.IsDir => {
+            var src = try source_dir.openDir(source_path, .{ .iterate = true, .no_follow = true });
+            defer src.close();
+
+            var dest = try dest_dir.makeOpenPath(dest_path, .{ .no_follow = true });
+            defer dest.close();
+
+            try copyDir(src, dest, options);
+        },
+        else => return err,
+    };
+}
+
+fn copyDir(source_dir: std.fs.Dir, dest_dir: std.fs.Dir, options: std.fs.CopyFileOptions) CopyTreeError!void {
+    var iter = source_dir.iterate();
+    while (try iter.next()) |entry| {
+        if (entry.kind == std.fs.File.Kind.Directory) {
+            var src = try source_dir.openDir(entry.name, .{ .iterate = true, .no_follow = true });
+            defer src.close();
+
+            var dest = try dest_dir.makeOpenPath(entry.name, .{ .no_follow = true });
+            defer dest.close();
+
+            try copyDir(src, dest, options);
+        } else {
+            try copyTree(source_dir, entry.name, dest_dir, entry.name, options);
+        }
+    }
+}
+
 pub fn errorName(err: anyerror) [:0]const u8 {
     return switch (err) {
         error.AccessDenied, error.PermissionDenied => "Access denied",

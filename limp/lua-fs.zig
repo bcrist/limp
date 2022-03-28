@@ -23,19 +23,15 @@ fn openFs(l: L) callconv(.C) c_int {
         .{ .name = "path_filename", .func = fsPathFilename },
         .{ .name = "path_extension", .func = fsPathExtension },
         .{ .name = "replace_extension", .func = fsReplaceExtension },
-
         .{ .name = "cwd", .func = fsCwd },
         .{ .name = "set_cwd", .func = fsSetCwd },
         .{ .name = "stat", .func = fsStat },
         .{ .name = "get_file_contents", .func = fsGetFileContents },
         .{ .name = "put_file_contents", .func = fsPutFileContents },
-
-        // .{ .name = "remove", .func = fs_path_remove },
-        // .{ .name = "move", .func = fs_path_remove },
-        // .{ .name = "create_dirs", .func = fs_create_dirs },
-        // .{ .name = "get_files", .func = fs_get_files },
-        // .{ .name = "get_dirs", .func = fs_get_dirs },
-
+        .{ .name = "move", .func = fsMove },
+        .{ .name = "copy", .func = fsCopy },
+        .{ .name = "delete", .func = fsDelete },
+        .{ .name = "ensure_dir_exists", .func = fsEnsureDirExists },
         .{ .name = null, .func = null },
     };
 
@@ -306,64 +302,81 @@ fn fsStat(l: L) callconv(.C) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-    c.lua_settop(l, 0);
-    c.lua_createtable(l, 0, 5);
-
-    if (std.fs.cwd().statFile(path)) |stat| {
-        _ = c.lua_pushstring(l, "size");
-        if (stat.size > std.math.maxInt(c.lua_Integer)) {
-            c.lua_pushinteger(l, std.math.maxInt(c.lua_Integer));
-        } else {
-            c.lua_pushinteger(l, @intCast(c.lua_Integer, stat.size));
-        }
-
-        _ = c.lua_pushstring(l, "kind");
-        var kind = switch (stat.kind) {
-            .BlockDevice => "blockdevice",
-            .CharacterDevice => "chardevice",
-            .Directory => "dir",
-            .NamedPipe => "pipe",
-            .SymLink => "symlink",
-            .File => "file",
-            .UnixDomainSocket => "socket",
-            .Whiteout => "whiteout",
-            .Door => "door",
-            .EventPort => "eventport",
-            .Unknown => "unknown",
-        };
-        _ = c.lua_pushlstring(l, kind.ptr, kind.len);
-
-        _ = c.lua_pushstring(l, "atime");
-        c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.atime, 1000000)));
-
-        _ = c.lua_pushstring(l, "mtime");
-        c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.mtime, 1000000)));
-
-        _ = c.lua_pushstring(l, "ctime");
-        c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.ctime, 1000000)));
-    } else |err| switch (err) {
+    var exists = true;
+    var stat = std.fs.File.Stat {
+        .inode = 0,
+        .size = 0,
+        .mode = 0,
+        .kind = std.fs.File.Kind.Unknown,
+        .atime = 0,
+        .mtime = 0,
+        .ctime = 0,
+    };
+    if (std.fs.cwd().statFile(path)) |s| {
+        stat = s;
+    } else |statFileErr| switch (statFileErr) {
+        error.IsDir => {
+            var dir = std.fs.cwd().openDir(path, .{}) catch |err| {
+                _ = c.luaL_error(l, fs.errorName(err));
+                unreachable;
+            };
+            stat = dir.stat() catch |err| {
+                _ = c.luaL_error(l, fs.errorName(err));
+                unreachable;
+            };
+        },
         error.FileNotFound, error.BadPathName, error.InvalidUtf8, error.NameTooLong => {
-            _ = c.lua_pushstring(l, "size");
-            c.lua_pushnil(l);
-            _ = c.lua_pushstring(l, "kind");
-            c.lua_pushnil(l);
-            _ = c.lua_pushstring(l, "atime");
-            c.lua_pushnil(l);
-            _ = c.lua_pushstring(l, "mtime");
-            c.lua_pushnil(l);
-            _ = c.lua_pushstring(l, "ctime");
-            c.lua_pushnil(l);
+            exists = false;
         },
         else => {
-            _ = c.luaL_error(l, fs.errorName(err));
+            _ = c.luaL_error(l, fs.errorName(statFileErr));
             unreachable;
         },
     }
 
+    c.lua_settop(l, 0);
+    c.lua_createtable(l, 0, 5);
+
+    _ = c.lua_pushstring(l, "size");
+    if (stat.size > std.math.maxInt(c.lua_Integer)) {
+        c.lua_pushinteger(l, std.math.maxInt(c.lua_Integer));
+    } else {
+        c.lua_pushinteger(l, @intCast(c.lua_Integer, stat.size));
+    }
     c.lua_rawset(l, 1);
+
+    _ = c.lua_pushstring(l, "kind");
+    var kind = switch (stat.kind) {
+        .BlockDevice => "blockdevice",
+        .CharacterDevice => "chardevice",
+        .Directory => "dir",
+        .NamedPipe => "pipe",
+        .SymLink => "symlink",
+        .File => "file",
+        .UnixDomainSocket => "socket",
+        .Whiteout => "whiteout",
+        .Door => "door",
+        .EventPort => "eventport",
+        .Unknown => "unknown",
+    };
+    if (!exists) kind = "";
+    _ = c.lua_pushlstring(l, kind.ptr, kind.len);
     c.lua_rawset(l, 1);
+
+    _ = c.lua_pushstring(l, "mode");
+    c.lua_pushinteger(l, @intCast(c.lua_Integer, stat.mode));
     c.lua_rawset(l, 1);
+
+    _ = c.lua_pushstring(l, "atime");
+    c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.atime, 1000000)));
     c.lua_rawset(l, 1);
+
+    _ = c.lua_pushstring(l, "mtime");
+    c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.mtime, 1000000)));
+    c.lua_rawset(l, 1);
+
+    _ = c.lua_pushstring(l, "ctime");
+    c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.ctime, 1000000)));
     c.lua_rawset(l, 1);
     return 1;
 }
@@ -422,208 +435,108 @@ fn fsPutFileContents(l: L) callconv(.C) c_int {
     return 0;
 }
 
-// int fs_is_dir(lua_State* L) {
-//    Path p(luaL_checkstring(L, 1));
-//    lua_pushboolean(L, fs::is_directory(p));
-//    return 1;
-// }
+fn fsMove(l: L) callconv(.C) c_int {
+    var src_path: []const u8 = undefined;
+    src_path.ptr = c.luaL_checklstring(l, 1, &src_path.len);
 
-// int fs_cwd(lua_State* L) {
-//    lua_pushstring(L, util::cwd().string().c_str());
-//    return 1;
-// }
+    var dest_path: []const u8 = undefined;
+    dest_path.ptr = c.luaL_checklstring(l, 2, &dest_path.len);
 
-// int fs_create_dirs(lua_State* L) {
-//    Path p(luaL_checkstring(L, 1));
-//    lua_pushboolean(L, fs::create_directories(p));
-//    return 1;
-// }
+    var force = c.lua_gettop(l) >= 3 and c.lua_toboolean(l, 3) != 0;
 
-// int fs_file_mtime(lua_State* L) {
-//    auto time_pt = fs::last_write_time(luaL_checkstring(L, 1));
-//    time_t mtime = decltype(time_pt)::clock::to_time_t(time_pt);
-//    lua_pushinteger(L, lua_Integer(mtime));
-//    return 1;
-// }
+    if (!force) {
+        var exists = true;
+        std.fs.cwd().access(dest_path, .{}) catch |err| switch (err) {
+            error.FileNotFound => exists = false,
+            else => {
+                _ = c.luaL_error(l, fs.errorName(err));
+                unreachable;
+            }
+        };
+        if (exists) {
+            _ = c.luaL_error(l, fs.errorName(error.PathAlreadyExists));
+            unreachable;
+        }
+    }
 
-// int fs_path_remove(lua_State* L) {
-//    lua_pushboolean(L, fs::remove(luaL_checkstring(L, 1)) ? 1 : 0);
-//    return 1;
-// }
+    std.fs.cwd().rename(src_path, dest_path) catch |err| {
+        _ = c.luaL_error(l, fs.errorName(err));
+        unreachable;
+    };
 
-// fn fsExists(l: L) callconv(.C) c_int {
-//     var path: []const u8 = undefined;
-//     path.ptr = c.luaL_checklstring(l, 1, &path.len);
+    return 0;
+}
 
-//     var result: c_int = 1;
-//     std.fs.cwd().access(path, .{}) catch |err| switch (err) {
-//         error.FileNotFound, error.BadPathName, error.InvalidUtf8, error.NameTooLong => {
-//             result = 0;
-//         },
-//         else => {
-//             _ = c.luaL_error(l, fs.errorName(err));
-//             unreachable;
-//         },
-//     };
+fn fsCopy(l: L) callconv(.C) c_int {
+    var src_path: []const u8 = undefined;
+    src_path.ptr = c.luaL_checklstring(l, 1, &src_path.len);
 
-//     c.lua_pushboolean(l, result);
-//     return 1;
-// }
+    var dest_path: []const u8 = undefined;
+    dest_path.ptr = c.luaL_checklstring(l, 2, &dest_path.len);
 
-// int fs_path_equivalent(lua_State* L) {
-//    std::size_t len;
-//    const char* ptr = luaL_checklstring(L, 1, &len);
-//    S a(ptr, len);
-//    ptr = luaL_checklstring(L, 2, &len);
-//    S b(ptr, len);
+    var force = c.lua_gettop(l) >= 3 and c.lua_toboolean(l, 3) != 0;
 
-//    lua_pushboolean(L, fs::equivalent(a, b) ? 1 : 0);
-//    return 1;
-// }
+    if (!force) {
+        var exists = true;
+        std.fs.cwd().access(dest_path, .{}) catch |err| switch (err) {
+            error.FileNotFound => exists = false,
+            else => {
+                _ = c.luaL_error(l, fs.errorName(err));
+                unreachable;
+            }
+        };
+        if (exists) {
+            _ = c.luaL_error(l, fs.errorName(error.PathAlreadyExists));
+            unreachable;
+        }
+    }
 
-// // return names of all non-directory files in the specified directory, or cwd if no dir specified
-// int fs_get_files(lua_State* L) {
-//    Path p;
-//    int count = 0;
-//    if (lua_gettop(L) == 0) {
-//       p = fs::current_path();
-//    } else {
-//       p = luaL_checkstring(L, 1);
-//    }
+    var cwd = std.fs.cwd();
+    fs.copyTree(cwd, src_path, cwd, dest_path, .{}) catch |err| {
+        _ = c.luaL_error(l, fs.errorName(err));
+        unreachable;
+    };
 
-//    try {
-//       if (fs::exists(p) && fs::is_directory(p)) {
-//          for (fs::directory_iterator i(p), end; i != end; ++i) {
-//             const Path& ipath = i->path();
-//             if (fs::is_regular_file(ipath)) {
-//                lua_checkstack(L, 1);
-//                lua_pushstring(L, ipath.filename().string().c_str());
-//                ++count;
-//             }
-//          }
-//       } else {
-//          return luaL_error(L, "Specified path is not a directory!");
-//       }
-//    } catch (fs::filesystem_error& e) {
-//       return luaL_error(L, e.what());
-//    }
-//    return count;
-// }
+    return 0;
+}
 
-// // return names of all directories in the specified directory, or cwd if no dir specified
-// int fs_get_dirs(lua_State* L) {
-//    Path p;
-//    int count = 0;
-//    if (lua_gettop(L) == 0) {
-//       p = fs::current_path();
-//    } else {
-//       p = luaL_checkstring(L, 1);
-//    }
+fn fsDelete(l: L) callconv(.C) c_int {
+    var path: []const u8 = undefined;
+    path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-//    try {
-//       if (fs::exists(p) && fs::is_directory(p)) {
-//          for (fs::directory_iterator i(p), end; i != end; ++i) {
-//             const fs::path& ipath = i->path();
-//             if (fs::is_directory(ipath)) {
-//                lua_checkstack(L, 1);
-//                lua_pushstring(L, ipath.filename().string().c_str());
-//                ++count;
-//             }
-//          }
-//       } else {
-//          return luaL_error(L, "Specified path is not a directory!");
-//       }
-//    } catch (fs::filesystem_error& e) {
-//       return luaL_error(L, e.what());
-//    }
-//    return count;
-// }
+    var recursive = c.lua_gettop(l) >= 2 and c.lua_toboolean(l, 2) != 0;
 
-// int fs_find_file(lua_State* L) {
-//    Path filename(luaL_checkstring(L, 1));
+    std.fs.cwd().deleteFile(path) catch |deleteFileErr| switch (deleteFileErr) {
+        error.IsDir => {
+            if (recursive) {
+                std.fs.cwd().deleteTree(path) catch |err| {
+                    _ = c.luaL_error(l, fs.errorName(err));
+                    unreachable;
+                };
+            } else {
+                std.fs.cwd().deleteDir(path) catch |err| {
+                    _ = c.luaL_error(l, fs.errorName(err));
+                    unreachable;
+                };
+            }
+        },
+        else => {
+            _ = c.luaL_error(l, fs.errorName(deleteFileErr));
+            unreachable;
+        }
+    };
 
-//    std::vector<Path> search_paths;
+    return 0;
+}
 
-//    I32 last = lua_gettop(L);
-//    for (I32 i = 2; i <= last; ++i) {
-//       util::parse_multi_path(luaL_checkstring(L, i), search_paths);
-//    }
+fn fsEnsureDirExists(l: L) callconv(.C) c_int {
+    var path: []const u8 = undefined;
+    path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-//    if (search_paths.empty()) {
-//       search_paths.push_back(util::cwd());
-//    }
+    std.fs.cwd().makePath(path) catch |err| {
+        _ = c.luaL_error(l, fs.errorName(err));
+        unreachable;
+    };
 
-//    filename = util::find_file(filename, search_paths);
-//    if (filename.empty()) {
-//       return 0;
-//    } else {
-//       lua_pushstring(L, filename.string().c_str());
-//       return 1;
-//    }
-// }
-
-// int fs_glob(lua_State* L) {
-//    std::size_t len;
-//    const char* ptr = luaL_checklstring(L, 1, &len);
-//    S pattern(ptr, len);
-
-//    std::vector<Path> search_paths;
-
-//    if (!lua_isnoneornil(L, 2)) {
-//       if (lua_type(L, 2) == LUA_TTABLE) {
-//          lua_pushnil(L);
-//          while (lua_next(L, 2) != 0) {
-//             ptr = luaL_tolstring(L, -1, &len);
-//             S str(ptr, len);
-//             lua_pop(L, 2);
-//             util::parse_multi_path(str, search_paths);
-//          }
-//       } else {
-//          ptr = luaL_tolstring(L, 2, &len);
-//          S str(ptr, len);
-//          lua_pop(L, 1);
-//          util::parse_multi_path(str, search_paths);
-//       }
-//    }
-
-//    if (search_paths.empty()) {
-//       search_paths.push_back(util::cwd());
-//    }
-
-//    util::PathMatchType type = util::PathMatchType::all;
-
-//    if (!lua_isnoneornil(L, 3)) {
-//       U8 type_mask = 0;
-//       ptr = lua_tolstring(L, 3, &len);
-//       S typestr(ptr, len);
-//       if (std::find(typestr.begin(), typestr.end(), 'f') != typestr.end()) {
-//          type_mask |= static_cast<U8>(util::PathMatchType::files);
-//       }
-//       if (std::find(typestr.begin(), typestr.end(), 'd') != typestr.end()) {
-//          type_mask |= static_cast<U8>(util::PathMatchType::directories);
-//       }
-//       if (std::find(typestr.begin(), typestr.end(), '?') != typestr.end()) {
-//          type_mask |= static_cast<U8>(util::PathMatchType::misc);
-//       }
-//       if (std::find(typestr.begin(), typestr.end(), 'r') != typestr.end()) {
-//          type_mask |= static_cast<U8>(util::PathMatchType::recursive);
-//       }
-//       type = static_cast<util::PathMatchType>(type_mask);
-//    }
-
-//    std::vector<Path> paths = util::glob(pattern, search_paths, type);
-
-//    lua_settop(L, 0);
-//    if (paths.size() > (std::size_t)std::numeric_limits<int>::max() || !lua_checkstack(L, (int)paths.size())) {
-//       luaL_error(L, "Too many paths to return on stack!");
-//       // TODO consider returning a table (sequence) instead to avoid this issue
-//    }
-
-//    for (Path& p : paths) {
-//       S str = p.string();
-//       lua_pushlstring(L, str.c_str(), str.length());
-//    }
-
-//    return (int)paths.size();
-// }
-
+    return 0;
+}
