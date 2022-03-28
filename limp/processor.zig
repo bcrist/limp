@@ -5,7 +5,7 @@ const temp_alloc = allocators.temp_arena.allocator();
 const languages = @import("languages.zig");
 const lua = @import("lua.zig");
 
-//[[!! quiet() fs.put_file_contents('limp.bc.lua', string.dump(loadfile('limp.lua'))) !! 1 ]]
+//[[!! quiet() fs.put_file_contents('limp.bc.lua', string.dump(load_file('limp.lua'))) !! 1 ]]
 const limp_core = @embedFile("limp.bc.lua");
 
 pub const Section = struct {

@@ -552,7 +552,7 @@ do -- include
    end
 
    function resolve_include_path (path)
-      return fs.resolve_path(path, include_dirs) or fs.resolve_path(path .. '.lua', include_dirs)
+      return fs.resolve_path(path, include_dirs)
    end
 end
 
