@@ -94,7 +94,7 @@ It takes a single string parameter containing the template definition.  Backtick
 
 ## Built-in Functions and Variables
 
-All functions from the (Lua Standard Libraries](https://www.lua.org/manual/5.4/manual.html#6) are available for use.
+All functions from the [Lua Standard Libraries](https://www.lua.org/manual/5.4/manual.html#6) are available for use.
 
     function nl ()
 
