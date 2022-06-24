@@ -205,7 +205,7 @@ pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8
     var have_abs = false;
     var max_size: usize = 0;
     for (paths) |p, i| {
-        if (std.fs.isAbsolutePosix(p)) {
+        if (std.fs.path.isAbsolutePosix(p)) {
             first_index = i;
             have_abs = true;
             max_size = 0;
