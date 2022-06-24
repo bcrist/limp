@@ -46,10 +46,10 @@ pub fn main() void {
 }
 
 fn run() !void {
-    var args = std.process.args();
-    _ = try args.next(arg_alloc); // skip path to exe
+    var args = try std.process.argsWithAllocator(arg_alloc);
+    _ = args.next(); // skip path to exe
 
-    while (try args.next(arg_alloc)) |arg| {
+    while (args.next()) |arg| {
         try processArg(arg, &args);
     }
 
@@ -274,7 +274,7 @@ fn shouldStopProcessing() bool {
 
 var check_option_args = true;
 
-fn processArg(arg: []u8, args: *std.process.ArgIterator) !void {
+fn processArg(arg: []const u8, args: *std.process.ArgIterator) !void {
     if (check_option_args and arg.len > 0 and arg[0] == '-') {
         if (arg.len > 1) {
             if (arg[1] == '-') {
@@ -290,7 +290,7 @@ fn processArg(arg: []u8, args: *std.process.ArgIterator) !void {
     try input_paths.append(path);
 }
 
-fn processLongOption(arg: []u8, args: *std.process.ArgIterator) !void {
+fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
     if (arg.len == 2) {
         check_option_args = false;
     } else if (std.mem.eql(u8, arg, "--dry-run")) {
@@ -311,7 +311,7 @@ fn processLongOption(arg: []u8, args: *std.process.ArgIterator) !void {
     } else if (std.mem.eql(u8, arg, "--quiet")) {
         option_quiet = true;
     } else if (std.mem.eql(u8, arg, "--extensions")) {
-        if (try args.next(arg_alloc)) |list| {
+        if (args.next()) |list| {
             try processExtensionList(list);
         } else {
             _ = try std.io.getStdErr().writer().write("Expected extension list after --extensions\n");
@@ -320,8 +320,8 @@ fn processLongOption(arg: []u8, args: *std.process.ArgIterator) !void {
     } else if (std.mem.startsWith(u8, arg, "--extensions=")) {
         try processExtensionList(arg["--extensions=".len..]);
     } else if (std.mem.eql(u8, arg, "--depfile")) {
-        if (try args.next(global_alloc)) |path| {
-            depfile_path = path;
+        if (args.next()) |path| {
+            depfile_path = try global_alloc.dupe(u8, path);
         } else {
             _ = try std.io.getStdErr().writer().write("Expected input directory path after --depfile\n");
             exit_code.bad_arg = true;
@@ -344,7 +344,7 @@ fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
         'V' => option_show_version = true,
         '?' => option_show_help = true,
         'x' => {
-            if (try args.next(arg_alloc)) |list| {
+            if (args.next()) |list| {
                 try processExtensionList(list);
             } else {
                 _ = try std.io.getStdErr().writer().write("Expected extension list after -x\n");
