@@ -68,7 +68,7 @@ fn run() !void {
     const stdout = std.io.getStdOut().writer();
 
     if (option_show_version) {
-        _ = try stdout.write("LIMP 0.2.1  Copyright (C) 2011-2022 Benjamin M. Crist\n");
+        _ = try stdout.write("LIMP 0.2.2  Copyright (C) 2011-2022 Benjamin M. Crist\n");
         try stdout.print("{s}\n", .{lua.c.LUA_COPYRIGHT});
         try stdout.print("zlib {s}  Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler\n", .{zlib.c.ZLIB_VERSION});
     }
