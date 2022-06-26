@@ -1,6 +1,7 @@
 const std = @import("std");
 const allocators = @import("allocators.zig");
 pub const fs = @import("lua-fs.zig");
+pub const sexpr = @import("lua-sexpr.zig");
 pub const util = @import("lua-util.zig");
 pub const c = @cImport({
     @cDefine("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{@sizeOf(allocators.TempAllocator)}));

@@ -383,6 +383,6 @@ pub fn errorName(err: anyerror) [:0]const u8 {
         error.SharingViolation => "Sharing violation",
         error.SymLinkLoop => "Symlink loop",
         error.OutOfMemory => "Out of memory",
-        else => "Unexpected filesystem error",
+        else => @errorName(err),
     };
 }

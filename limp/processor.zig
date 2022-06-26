@@ -310,6 +310,7 @@ pub const Processor = struct {
             lua.registerStdLib,
             lua.fs.registerFsLib,
             lua.util.registerUtilLib,
+            lua.sexpr.registerSExprLib,
         };
         try l.callAll(&initializers);
 
