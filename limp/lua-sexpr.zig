@@ -127,7 +127,7 @@ fn parser_done(l: L) callconv(.C) c_int {
 
 fn parser_expression(l: L) callconv(.C) c_int {
     var parser = @ptrCast(*sexpr.SxParser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
-    if (c.lua_gettop(l) >= 2) {
+    if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
         var expected: []const u8 = undefined;
         expected.ptr = c.luaL_checklstring(l, 2, &expected.len);
 
@@ -155,7 +155,7 @@ fn parser_expression(l: L) callconv(.C) c_int {
 
 fn parser_string(l: L) callconv(.C) c_int {
     var parser = @ptrCast(*sexpr.SxParser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
-     if (c.lua_gettop(l) >= 2) {
+     if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
         var expected: []const u8 = undefined;
         expected.ptr = c.luaL_checklstring(l, 2, &expected.len);
 
@@ -198,7 +198,7 @@ fn parser_int(l: L) callconv(.C) c_int {
     var parser = @ptrCast(*sexpr.SxParser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
 
     var radix: u8 = 10;
-    if (c.lua_gettop(l) >= 2) {
+    if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
         radix = @intCast(u8, std.math.clamp(c.luaL_checkinteger(l, 2), 0, 36));
     }
 
@@ -217,7 +217,7 @@ fn parser_unsigned(l: L) callconv(.C) c_int {
     var parser = @ptrCast(*sexpr.SxParser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
 
     var radix: u8 = 10;
-    if (c.lua_gettop(l) >= 2) {
+    if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
         radix = @intCast(u8, std.math.clamp(c.luaL_checkinteger(l, 2), 0, 36));
     }
 

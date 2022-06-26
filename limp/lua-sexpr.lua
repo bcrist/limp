@@ -58,8 +58,8 @@ parser_meta.require_float = function(parser)
     return result
 end
 
-parser_meta.require_int = function(parser)
-    local result = parser:int()
+parser_meta.require_int = function(parser, radix)
+    local result = parser:int(radix)
     if result == nil then
         parser:print_parse_error_context()
         error("Expected integer")
@@ -67,8 +67,8 @@ parser_meta.require_int = function(parser)
     return result
 end
 
-parser_meta.require_unsigned = function(parser)
-    local result = parser:unsigned()
+parser_meta.require_unsigned = function(parser, radix)
+    local result = parser:unsigned(radix)
     if result == nil then
         parser:print_parse_error_context()
         error("Expected unsigned integer")
@@ -96,6 +96,19 @@ parser_meta.require_array = function(parser, expected)
         end
     end
     return result
+end
+
+parser_meta.require_property = function(parser, expected)
+    local key, value = parser:property(expected)
+    if key == nil then
+        parser:print_parse_error_context()
+        if expected == nil then
+            error("Expected property")
+        else
+            error("Expected property " .. expected)
+        end
+    end
+    return key, value
 end
 
 parser_meta.require_object = function(parser, expected)
