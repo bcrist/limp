@@ -92,6 +92,144 @@ It takes a single string parameter containing the template definition.  Backtick
 
     /* ######################### END OF GENERATED CODE ######################### */
 
+## S-Expression Parsing
+
+An S-Expression parser is built into LIMP which provides an easy way to import human-readable data to be processed.
+A parser can be constructed from an S-expression string, and provides a variety of methods to extract data from the
+S-expression one piece at a time.  The simplest way to use it is something like this:
+
+    local source = [[
+        (1 2 3 (subarray 2 3 4.0))
+    ]]
+    local parser = sx.parser(source)
+    local result = parser:array()
+
+This will produce a table equivalent to this:
+
+    result = { 1, 2, 3, { 'subarray', 2, 3, 4.0 }}
+
+A common idiom with S-expressions is that the first value in a subexpression is treated as a property name of a key-value pair.
+The `object()` method can be used to take advantage of this:
+
+    parser = sx.parser(source)
+    result = parser:object()
+
+This will produce a table equivalent to this:
+
+    result = { 1, 2, 3, subarray = { 2, 3, 4.0 }}
+
+Note that there is a possibility of data loss here (e.g. if there were multiple `subarray` expressions within the same outer expression)
+and Lua will not retain the relative ordering for expressions with multiple properties.
+
+Sometimes you may want more structure and control over the parsing process, so there are a range of
+lower-level methods to parse more incrementally.  For example:
+
+    source = [[
+        (box 2 5 4 (color blue))
+    ]]
+    parser = sx.parser(source)
+    parser:require_expression('box')
+    local width = parser:float() or 1
+    local height = parser:float() or 1
+    local depth = parser:float() or 1
+    local color = 'white'
+    if parser:expression('color') then
+        color = parser:require_string()
+        parser:close()
+    end
+    parser:close()
+    parser:require_done()
+
+### S-Expression Parser Methods
+
+Methods that begin with `require_` operate the same as their unprefixed versions, except any time `nil` or `false` would
+be returned, an error is generated instead.
+
+    function open (parser) --> bool
+    function require_open (parser)
+
+Consumes the next token from the parser if it is `(`.
+
+    function close (parser) --> bool
+    function require_close (parser)
+
+Consumes the next token from the parser if it is `)`.
+
+    function done (parser) --> bool
+    function require_done (parser)
+
+Checks if the parser has reached the end of the input.
+
+    function expression (parser) --> string | nil
+    function expression (parser, expected) --> bool
+    function require_expression (parser) --> string
+    function require_expression (parser, expected)
+
+Attempts to consume the next 2 tokens from the parser if they are `(` and a string.  If `expected` is provided, the second token must be that exact string in order for any tokens to be consumed.
+
+    function string (parser) --> string | nil
+    function string (parser, expected) --> bool
+    function require_string (parser) --> string
+    function require_string (parser, expected)
+
+Attempts to consume the next token from the parser if it is a string/value.  If `expected` is provided, it must be that exact string in order to be consumed.
+
+    function float (parser) --> number | nil
+    function require_float (parser) --> float
+
+Attempts to consume the next token from the parser if it can be parsed as a floating point number.
+
+    function int (parser, radix = 10) --> integer | nil
+    function require_int (parser, radix = 10) --> integer
+
+Attempts to consume the next token from the parser if it can be parsed as a signed integer.
+
+    function unsigned (parser, radix = 10) --> integer | nil
+    function require_unsigned (parser, radix = 10) --> integer
+
+Attempts to consume the next token from the parser if it can be parsed as an unsigned integer.
+
+    function array_item (parser) --> * | nil
+    function require_array_item (parser) --> *
+
+Attempts to parse a number, string, or array.
+
+    function array_items (parser, array = {}) --> table
+
+Attempts to parse as many numbers, strings, or arrays as possible, and appends them to the provided table.
+
+    function array (parser) --> table | nil
+    function array (parser, expected) --> table | nil
+    function require_array (parser) --> table
+    function require_array (parser, expected) --> table
+
+Attempts to consume a subexpression.  If `expected` is provided, the subexpression will only be consumed if it begins with this string, as if using `if expression(expected) then ... end`.  Additional values/subexpressions will be parsed using `array_items`.
+
+    function property (parser, expected_key = nil) --> key | nil, value | nil
+    function require_property (parser, expected_key = nil) --> key, value
+
+Attempts to consume a subexpression.  The first value in the subexpression is the key.  If there are no additional values, the value is assumed to be `true`.  If there are more than one additional value, or if the value is a property itself, they are parsed as if by `object_items`.  If `expected_key` is provided, the subexpression will only be consumed if the key matches that string.
+
+    function object_items (parser, obj = {}) --> table
+
+Attempts to parse as many properties, numbers, strings, or arrays as possible, inserting or appending them in the provided table.
+
+    function object (parser) --> table | nil
+    function object (parser, expected) --> table | nil
+    function require_object (parser) --> table
+    function require_object (parser, expected) --> table
+
+Attempts to consume a subexpression.  If `expected` is provided, the subexpression will only be consumed if it begins with this string, as if using `if expression(expected) then ... end`.  Additional values/subexpressions will be parsed using `object_items`.
+
+    function ignore_remaining_expression (parser)
+
+Ignore any remaining values or subexpressions and consume the `)` token that ends this expression.
+
+    function print_parse_error_context (parser)
+
+Print (to stderr) the line number and contents of the current line being parsed, and highlight the next unconsumed token.
+
+
 ## Built-in Functions and Variables
 
 All functions from the [Lua Standard Libraries](https://www.lua.org/manual/5.4/manual.html#6) are available for use.
@@ -147,6 +285,10 @@ Equivalent to `write(get_indent())`.  Normally you don't need to call this direc
     function indent_newlines (str)
 
 Returns a copy of `str` with newlines normalized, and each new line having `get_indent()` prepended.
+
+    function sx.parser (str)
+
+Returns a new parser to process the provided S-expression string.  See above for discussion of the methods available on this type of userdata object.
 
     function fs.absolute_path (path)
 
