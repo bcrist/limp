@@ -291,9 +291,14 @@ do -- write
    end
 end
 
-function quiet()
-   prefix = ''
-   postfix = ''
+function quiet (p)
+   if p == false then
+      prefix = nil
+      postfix = nil
+   else
+      prefix = ''
+      postfix = ''
+   end
 end
 
 function write_prefix ()
