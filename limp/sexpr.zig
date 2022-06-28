@@ -386,7 +386,9 @@ pub const SxParser = struct {
 
         var token_length = @ptrToInt(self.remaining.ptr) - @ptrToInt(self.start_of_token.ptr);
 
-        std.mem.set(u8, highlight[pad_amount..pad_amount + token_length], '^');
+        highlight.len = pad_amount + token_length;
+
+        std.mem.set(u8, highlight[pad_amount..], '^');
 
         var stderr = std.io.getStdErr().writer();
         try stderr.print("{:>4}: {s}\n", .{ self.line_number, line });
