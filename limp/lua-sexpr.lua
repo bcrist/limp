@@ -161,14 +161,19 @@ parser_meta.array = function (parser, expected_expr_name)
     return array
 end
 
-parser_meta.property = function (parser, expected_key) --> key, value
+parser_meta.property = function (parser, expected_key_or_table, ...) --> key, value
     local key
-    if expected_key == nil then
+    if expected_key_or_table == nil then
         key = parser:expression()
         if key == nil then return end
+    elseif type(expected_key_or_table) == 'string' then
+        if not parser:expression(expected_key_or_table) then return end
+        key = expected_key_or_table
     else
-        if not parser:expression(expected_key) then return end
-        key = expected_key
+        local visitor = expected_key_or_table
+        key = parser:expression()
+        if key == nil then return end
+        return key, visitor[key](parser, key, ...)
     end
 
     local value = nil

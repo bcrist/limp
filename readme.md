@@ -203,12 +203,24 @@ Attempts to parse as many numbers, strings, or arrays as possible, and appends t
     function require_array (parser) --> table
     function require_array (parser, expected) --> table
 
-Attempts to consume a subexpression.  If `expected` is provided, the subexpression will only be consumed if it begins with this string, as if using `if expression(expected) then ... end`.  Additional values/subexpressions will be parsed using `array_items`.
+Attempts to consume a subexpression.  If `expected` is provided, the subexpression will only be consumed if it begins with this string,
+as if using `if expression(expected) then ... end`.  Additional values/subexpressions will be parsed using `array_items`.
 
-    function property (parser, expected_key = nil) --> key | nil, value | nil
-    function require_property (parser, expected_key = nil) --> key, value
+    function property (parser) --> key | nil, value | nil
+    function property (parser, expected_key) --> key | nil, value | nil
+    function require_property (parser) --> key, value
+    function require_property (parser, expected_key) --> key, value
 
-Attempts to consume a subexpression.  The first value in the subexpression is the key.  If there are no additional values, the value is assumed to be `true`.  If there are more than one additional value, or if the value is a property itself, they are parsed as if by `object_items`.  If `expected_key` is provided, the subexpression will only be consumed if the key matches that string.
+Attempts to consume a subexpression.  The first value in the subexpression is the key.  If there are no additional values, the value
+is assumed to be `true`.  If there are more than one additional value, or if the value is a property itself, they are parsed as if by
+`object_items`.  If `expected_key` is provided, the subexpression will only be consumed if the key matches that string.
+
+    function property (parser, table, ...) --> key | nil, value | nil
+    function require_property (parser, table, ...) --> key, value
+
+Attempts to consume a subexpression.  The first value in the subexpression is the key.  A function will be looked up in the provided table.  That
+function will be called and passed the parser, key name, and any additional parameters passed into `property`, and it should parse the remainder
+of the subexpression and return a value.  A metatable can be used to handle/ignore unrecognized keys, otherwise such edge cases will result in an error.
 
     function object_items (parser, obj = {}) --> table
 
@@ -219,7 +231,8 @@ Attempts to parse as many properties, numbers, strings, or arrays as possible, i
     function require_object (parser) --> table
     function require_object (parser, expected) --> table
 
-Attempts to consume a subexpression.  If `expected` is provided, the subexpression will only be consumed if it begins with this string, as if using `if expression(expected) then ... end`.  Additional values/subexpressions will be parsed using `object_items`.
+Attempts to consume a subexpression.  If `expected` is provided, the subexpression will only be consumed if it begins with this string, as if using
+`if expression(expected) then ... end`.  Additional values/subexpressions will be parsed using `object_items`.
 
     function ignore_remaining_expression (parser)
 
@@ -240,7 +253,9 @@ Writes a newline character or characters and any indentation/comment characters 
 
     function write (...)
 
-Converts each each parameter to a string and writes it to the output in sequence, with no separators.  Tables with no `__tostring` metamethod will be recursively dumped as key-value pairs.  Functions will be called with no parameters and any returned results will be recursively written.  Other non-string values will be converted using `tostring()`.
+Converts each each parameter to a string and writes it to the output in sequence, with no separators.  Tables with no `__tostring` metamethod will be
+recursively dumped as key-value pairs.  Functions will be called with no parameters and any returned results will be recursively written.  Other
+non-string values will be converted using `tostring()`.
 
     function writeln (...)
 
@@ -292,7 +307,8 @@ Returns a new parser to process the provided S-expression string.  See above for
 
     function fs.absolute_path (path)
 
-If `path` is already an absolute path, it is returned unchanged, otherwise an absolute path is constructed as if by calling `fs.compose_path(fs.cwd(), path)`.  This function does not access the filesystem.
+If `path` is already an absolute path, it is returned unchanged, otherwise an absolute path is constructed as if by calling `fs.compose_path(fs.cwd(), path)`.
+This function does not access the filesystem.
 
     function fs.canonical_path (path)
 
@@ -300,7 +316,8 @@ Converts `path` to an absolute path (if necessary) and resolves any `..`, `.`, o
 
     function fs.compose_path (...)
 
-Joins each of the provided path parts into a single path, using a directory separator appropriate for the current platform (including converting any directory separators inside the path strings).  Only the first parameter may be an absolute path (but isn't required to be).  This function does not access the filesystem.
+Joins each of the provided path parts into a single path, using a directory separator appropriate for the current platform (including converting any directory
+separators inside the path strings).  Only the first parameter may be an absolute path (but isn't required to be).  This function does not access the filesystem.
 
     function fs.compose_path_slash (...)
 
@@ -312,11 +329,15 @@ Removes the filename or final directory name from a path.  If the path is a root
 
     function fs.ancestor_relative_path (child, ancestor)
 
-Returns a path to `child` relative to the `ancestor` path, if the `child` path's starting segments are identical to `ancestor`.  Otherwise, returns `child` unchanged.  If both paths are the same, `.` is returned.  If one path contains `..`, symlinks, etc. that do not appear in the other path, yet they are actually equivalent, this function will not be able to generate a relative path.  This function does not access the filesystem.
+Returns a path to `child` relative to the `ancestor` path, if the `child` path's starting segments are identical to `ancestor`.  Otherwise, returns `child`
+unchanged.  If both paths are the same, `.` is returned.  If one path contains `..`, symlinks, etc. that do not appear in the other path, yet they are actually
+equivalent, this function will not be able to generate a relative path.  This function does not access the filesystem.
 
     function fs.resolve_path (path, search, include_cwd = false)
 
-Looks for an existing path in one or more directories and returns the first one it finds.  If `search` is a path, that directory is searched.  If `search` is a table, each value contained in it is searched.  Use integer keys to ensure a consistent search order.  Finally if no match has been found yet and `include_cwd` is true, the current directory is searched.
+Looks for an existing path in one or more directories and returns the first one it finds.  If `search` is a path, that directory is searched.  If `search` is
+a table, each value contained in it is searched.  Use integer keys to ensure a consistent search order.  Finally if no match has been found yet and `include_cwd`
+is true, the current directory is searched.
 
     function fs.path_stem (path)
 
@@ -344,7 +365,8 @@ Sets the current working directory to a new path.  Note this will be reset each 
 
     function fs.stat (path)
 
-Returns an object containing size, timestamps, type, kind, and mode/permissions for a file or directory.  If the file/directory does not exist, the kind will be an empty string, and all other properties will be 0.
+Returns an object containing size, timestamps, type, kind, and mode/permissions for a file or directory.  If the file/directory does not exist, the kind will be
+an empty string, and all other properties will be 0.
 
     function fs.get_file_contents (path)
 
@@ -360,7 +382,8 @@ Renames a file or directory.  If `dest` already exists it will only be overwritt
 
     function fs.copy (src, dest, force = false)
 
-Copies a file or directory.  If `dest` already exists it will only be overwritten if it is the same kind as `src` (i.e. both files or directories) and `force` is true.  When "overwriting" a directory, files in the old directory will only be replaced if they also exist in the source directory.
+Copies a file or directory.  If `dest` already exists it will only be overwritten if it is the same kind as `src` (i.e. both files or directories) and `force` is true.
+When "overwriting" a directory, files in the old directory will only be replaced if they also exist in the source directory.
 
     function fs.delete (path, recursive = false)
 
@@ -372,7 +395,8 @@ Creates any directories necessary to ensure that `path` exists and is a director
 
     function util.deflate (uncompressed, level = 8, encode_length = false)
 
-Returns a zlib-compressed version of the `uncompressed` string.  If `encode_length` is true, an extra 8 bytes are prepended indicating the original uncompressed length of `data`, which is needed for `util.inflate()`.
+Returns a zlib-compressed version of the `uncompressed` string.  If `encode_length` is true, an extra 8 bytes are prepended indicating the original uncompressed
+length of `data`, which is needed for `util.inflate()`.
 
     function util.inflate (compressed, uncompressed_length = nil)
 
@@ -388,7 +412,8 @@ Returns a copy of `str` with all newlines normalized to `nl_style`
 
     function postprocess (str)
 
-Called with the string containing the new output data just before it's inserted back into the file.  By default it just calls `trim_trailing_ws(str)`, but it can be replaced with another function or removed if desired.
+Called with the string containing the new output data just before it's inserted back into the file.  By default it just calls `trim_trailing_ws(str)`, but it
+can be replaced with another function or removed if desired.
 
     function write_prefix ()
 
@@ -413,7 +438,8 @@ The path to the file containing the LIMP being processed.
 
     limprc_path
 
-The path to the `.limprc` file that was executed.  If multiple `.limprc` files have been run (due to `import_limprc` being called again), only the most recent path is reflected here.
+The path to the `.limprc` file that was executed.  If multiple `.limprc` files have been run (due to `import_limprc` being called again), only the most
+recent path is reflected here.
 
     comment_begin
     comment_end
@@ -436,7 +462,9 @@ Configures the characters to use for automatic indentation.
 
     nl_style
 
-The detected character(s) that should be used to indicate a new line; `\n`, `\r`, or `\r\n`.  The last newline before the start of the LIMP comment will be used, unless it begins on the first line of the file, in which case it will look at the first ~50 lines and pick whichever ending is most frequently used.  If there are no newlines at all, `\r\n` will be used on Windows, and `\n` on any other platform.
+The detected character(s) that should be used to indicate a new line; `\n`, `\r`, or `\r\n`.  The last newline before the start of the LIMP comment
+will be used, unless it begins on the first line of the file, in which case it will look at the first ~50 lines and pick whichever ending is most
+frequently used.  If there are no newlines at all, `\r\n` will be used on Windows, and `\n` on any other platform.
 
     backtick
 
@@ -458,7 +486,8 @@ Identical to `fs.get_file_contents (path)` but the file is marked as a dependenc
 
     function include (include_name)
 
-Searches all currently registered include paths and the current directory for a `.lua` file with the specified name and executes it.  The name provided does not need to include the `.lua` extension.
+Searches all currently registered include paths and the current directory for a `.lua` file with the specified name and executes it.  The name
+provided does not need to include the `.lua` extension.
 
     function register_include_dir (path)
 
@@ -470,8 +499,11 @@ Same as `include(...)` except instead of running the included chunk, it is retur
 
     function resolve_include_path (path)
 
-Searches for the provided path among all current include paths, using `fs.resolve_path()`.  This can be useful to find other types of files that live "next to" an included Lua script.
+Searches for the provided path among all current include paths, using `fs.resolve_path()`.  This can be useful to find other types of files
+that live "next to" an included Lua script.
 
     function import_limprc (path)
 
-Searches for a `.limprc` file in the provided path, or a parent of that path, and executes it.  This will be called automatically when processing a new file, but you can chain `.limprc` files together by putting `import_limprc(fs.parent_path(limprc_path))` inside a `.limprc` file in a subdirectory of the project's root.
+Searches for a `.limprc` file in the provided path, or a parent of that path, and executes it.  This will be called automatically when processing
+a new file, but you can chain `.limprc` files together by putting `import_limprc(fs.parent_path(limprc_path))` inside a `.limprc` file in a
+subdirectory of the project's root.
