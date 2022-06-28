@@ -524,6 +524,8 @@ function template (source)
          local context_value = env_mt.context[slot]
          if context_value ~= nil then
             return context_value
+         elseif slot == '_X' then
+            return env_mt.context
          end
       end
       return _ENV[slot]
