@@ -247,6 +247,12 @@ Print (to stderr) the line number and contents of the current line being parsed,
 
 All functions from the [Lua Standard Libraries](https://www.lua.org/manual/5.4/manual.html#6) are available for use.
 
+    function spairs (table)
+    function spairs (table, comparator)
+
+Iterator generator like `pairs`, except keys are visited in sorted order.  By default, the order is lexicographic, but a custom
+comparator may be provided as for `table.sort`.
+
     function nl ()
 
 Writes a newline character or characters and any indentation/comment characters as necessary.

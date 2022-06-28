@@ -62,6 +62,43 @@ do -- strict.lua
 
 end
 
+local function spairs_next(ctx, last)
+   local next_index = nil
+   if last == nil then
+      next_index = 1
+   elseif ctx.last_key == last then
+      next_index = ctx.last_index + 1
+   else
+      for i = 1, #ctx.keys do
+         if ctx.keys[i] == last then
+            next_index = i + 1
+         end
+      end
+   end
+
+   local key = ctx.keys[next_index]
+   ctx.last_index = next_index
+   ctx.last_key = key
+
+   if key ~= nil then
+       return key, ctx.table[key]
+   end
+end
+
+-- Identical to pairs() except guarantees sorted ordering using table.sort
+function spairs(t, comp)
+   local ordered_keys = {}
+   for key in pairs(t) do
+      table.insert(ordered_keys, key)
+   end
+   table.sort(ordered_keys, comp)
+   return spairs_next, {
+      table = t,
+      keys = ordered_keys,
+   }, nil
+end
+
+
 last_generated_data = nil
 base_indent = nil
 nl_style = nil
