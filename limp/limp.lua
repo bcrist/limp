@@ -102,7 +102,7 @@ end
 last_generated_data = nil
 base_indent = nil
 nl_style = nil
-indent_size = 3
+indent_size = 4
 indent_char = ' '
 limprc_path = nil
 prefix = nil

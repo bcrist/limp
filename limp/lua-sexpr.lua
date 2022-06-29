@@ -173,7 +173,13 @@ parser_meta.property = function (parser, expected_key_or_table, ...) --> key, va
         local visitor = expected_key_or_table
         key = parser:expression()
         if key == nil then return end
-        return key, visitor[key](parser, key, ...)
+        local value = visitor[key]
+        if value == nil then
+            error("Visitor has no handler for property " .. key)
+        elseif type(value) == 'function' then
+            value = value(parser, key, ...)
+        end
+        return key, value
     end
 
     local value = nil
