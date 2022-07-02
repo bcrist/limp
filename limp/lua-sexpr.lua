@@ -175,6 +175,7 @@ parser_meta.property = function (parser, expected_key_or_table, ...) --> key, va
         if key == nil then return end
         local value = visitor[key]
         if value == nil then
+            parser:print_parse_error_context()
             error("Visitor has no handler for property " .. key)
         elseif type(value) == 'function' then
             value = value(parser, key, ...)
