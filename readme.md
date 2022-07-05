@@ -399,6 +399,12 @@ Deletes a file or directory.  If `recursive` is true, a directory can be deleted
 
 Creates any directories necessary to ensure that `path` exists and is a directory.  Throws an error if not possible due to a file existing with a conflicting name.
 
+    function fs.visit (path, func, recursive, no_follow)
+
+Calls `func` once for each entry in the directory specified by `path`.  If the 3rd parameter is true, subdirectories will be recursed.
+If the 4th parameter is true, symlinks will not be treated as directories.  The visitor function will be passed the file name and a
+string indicating the kind of file (e.g. `File`, `Directory`, `SymLink`, etc.)
+
     function util.deflate (uncompressed, level = 8, encode_length = false)
 
 Returns a zlib-compressed version of the `uncompressed` string.  If `encode_length` is true, an extra 8 bytes are prepended indicating the original uncompressed

@@ -32,6 +32,7 @@ fn openFs(l: L) callconv(.C) c_int {
         .{ .name = "copy", .func = fsCopy },
         .{ .name = "delete", .func = fsDelete },
         .{ .name = "ensure_dir_exists", .func = fsEnsureDirExists },
+        .{ .name = "visit", .func = fsVisit },
         .{ .name = null, .func = null },
     };
 
@@ -537,6 +538,107 @@ fn fsEnsureDirExists(l: L) callconv(.C) c_int {
         _ = c.luaL_error(l, fs.errorName(err));
         unreachable;
     };
+
+    return 0;
+}
+
+fn fsVisit(l: L) callconv(.C) c_int {
+    var temp = lua.getTempAlloc(l);
+    defer temp.reset(65536) catch {};
+    var alloc = temp.allocator();
+
+    var path: []const u8 = undefined;
+    path.ptr = c.luaL_checklstring(l, 1, &path.len);
+
+    var recursive = c.lua_gettop(l) >= 3 and c.lua_toboolean(l, 3) != 0;
+    var no_follow = c.lua_gettop(l) >= 4 and c.lua_toboolean(l, 4) != 0;
+
+    var dir = std.fs.cwd().openDir(path, .{
+        .access_sub_paths = true,
+        .iterate = true,
+        .no_follow = no_follow,
+    }) catch |err| {
+        _ = c.luaL_error(l, fs.errorName(err));
+        unreachable;
+    };
+
+    if (recursive) {
+        var walker = dir.walk(alloc) catch |err| {
+            dir.close();
+            _ = c.luaL_error(l, fs.errorName(err));
+            unreachable;
+        };
+
+        while (walker.next() catch |err| {
+            walker.deinit();
+            dir.close();
+            _ = c.luaL_error(l, fs.errorName(err));
+            unreachable;
+        }) |entry| {
+            var kind = @tagName(entry.kind);
+
+            c.lua_pushvalue(l, 2);
+            _ = c.lua_pushlstring(l, entry.path.ptr, entry.path.len);
+            _ = c.lua_pushlstring(l, kind.ptr, kind.len);
+
+            switch (c.lua_pcallk(l, 2, 0, 0, 0, null)) {
+                c.LUA_OK => {},
+                c.LUA_ERRMEM => {
+                    walker.deinit();
+                    dir.close();
+                    _ = c.luaL_error(l, "Lua Runtime Error");
+                    unreachable;
+                },
+                c.LUA_ERRERR => {
+                    walker.deinit();
+                    dir.close();
+                    _ = c.lua_error(l);
+                    unreachable;
+                },
+                else => {
+                    walker.deinit();
+                    dir.close();
+                    _ = c.luaL_error(l, "Lua Runtime Error");
+                    unreachable;
+                },
+            }
+        }
+        walker.deinit();
+
+    } else {
+        var iter = dir.iterate();
+        while (iter.next() catch |err| {
+            dir.close();
+            _ = c.luaL_error(l, fs.errorName(err));
+            unreachable;
+        }) |entry| {
+            var kind = @tagName(entry.kind);
+
+            c.lua_pushvalue(l, 2);
+            _ = c.lua_pushlstring(l, entry.name.ptr, entry.name.len);
+            _ = c.lua_pushlstring(l, kind.ptr, kind.len);
+
+            switch (c.lua_pcallk(l, 2, 0, 0, 0, null)) {
+                c.LUA_OK => {},
+                c.LUA_ERRMEM => {
+                    dir.close();
+                    _ = c.luaL_error(l, "Lua Runtime Error");
+                    unreachable;
+                },
+                c.LUA_ERRERR => {
+                    dir.close();
+                    _ = c.lua_error(l);
+                    unreachable;
+                },
+                else => {
+                    dir.close();
+                    _ = c.luaL_error(l, "Lua Runtime Error");
+                    unreachable;
+                },
+            }
+        }
+    }
+    dir.close();
 
     return 0;
 }
