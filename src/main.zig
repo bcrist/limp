@@ -10,6 +10,8 @@ const help_verbose = @embedFile("help-verbose.txt");
 const help_options = @embedFile("help-options.txt");
 const help_exitcodes = @embedFile("help-exitcodes.txt");
 
+const version = "0.2.5";
+
 var arg_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 const arg_alloc = arg_arena.allocator();
 const global_alloc = allocators.global_arena.allocator();
@@ -72,7 +74,7 @@ fn run() !void {
     const stdout = std.io.getStdOut().writer();
 
     if (option_show_version) {
-        try stdout.writeAll("LIMP 0.2.4  Copyright (C) 2011-2022 Benjamin M. Crist\n");
+        try stdout.print("LIMP {s}  Copyright (C) 2011-2022 Benjamin M. Crist\n", .{version});
         try stdout.print("{s}\n", .{lua.c.LUA_COPYRIGHT});
         try stdout.print("zlib {s}  Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler\n", .{zlib.c.ZLIB_VERSION});
     }

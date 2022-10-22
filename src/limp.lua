@@ -444,7 +444,7 @@ function write_file (path)
       write(indent_newlines(contents))
    end
 end
- 
+
 -- Passes through the output from from a child process's stdout to the generated code.  stderr is not redirected.
 function write_proc (command)
    local f = io.popen(command, 'r')
