@@ -48,7 +48,7 @@ fn openSx(l: L) callconv(.C) c_int {
     }
     c.lua_pushvalue(l, -2);
     c.lua_callk(l, 1, 0, 0, null);
-    
+
     var funcs = [_]c.luaL_Reg {
         .{ .name = "parser", .func = sexprParser },
         .{ .name = null, .func = null },
@@ -77,11 +77,18 @@ fn sexprParser(l: L) callconv(.C) c_int {
     var parser = @ptrCast(*Parser, @alignCast(8, c.lua_newuserdata(l, @sizeOf(Parser))));
     c.luaL_setmetatable(l, "class SxParser");
 
+    var alloc = allocators.global_gpa.allocator();
+
+    var ownedSource: []const u8 = alloc.dupe(u8, source) catch |e| {
+        _ = c.luaL_error(l, @errorName(e).ptr);
+        unreachable;
+    };
+
     parser.* = .{
-        .stream = std.io.fixedBufferStream(source),
+        .stream = std.io.fixedBufferStream(ownedSource),
         .reader = undefined,
     };
-    parser.reader = sx.reader(allocators.global_gpa.allocator(), parser.stream.reader());
+    parser.reader = sx.reader(alloc, parser.stream.reader());
 
     return 1;
 }
@@ -89,6 +96,7 @@ fn sexprParser(l: L) callconv(.C) c_int {
 fn parser__gc(l: L) callconv(.C) c_int {
     var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
     parser.reader.deinit();
+    allocators.global_gpa.allocator().free(parser.stream.buffer);
     return 0;
 }
 
