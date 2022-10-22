@@ -333,7 +333,7 @@ pub fn copyTree(source_dir: std.fs.Dir, source_path: []const u8, dest_dir: std.f
     // TODO figure out how to handle symlinks better
     source_dir.copyFile(source_path, dest_dir, dest_path, options) catch |err| switch (err) {
         error.IsDir => {
-            var src = try source_dir.openDir(source_path, .{ .iterate = true, .no_follow = true });
+            var src = try source_dir.openIterableDir(source_path, .{ .no_follow = true });
             defer src.close();
 
             var dest = try dest_dir.makeOpenPath(dest_path, .{ .no_follow = true });
@@ -345,11 +345,11 @@ pub fn copyTree(source_dir: std.fs.Dir, source_path: []const u8, dest_dir: std.f
     };
 }
 
-fn copyDir(source_dir: std.fs.Dir, dest_dir: std.fs.Dir, options: std.fs.CopyFileOptions) CopyTreeError!void {
+fn copyDir(source_dir: std.fs.IterableDir, dest_dir: std.fs.Dir, options: std.fs.CopyFileOptions) CopyTreeError!void {
     var iter = source_dir.iterate();
     while (try iter.next()) |entry| {
         if (entry.kind == std.fs.File.Kind.Directory) {
-            var src = try source_dir.openDir(entry.name, .{ .iterate = true, .no_follow = true });
+            var src = try source_dir.dir.openIterableDir(entry.name, .{ .no_follow = true });
             defer src.close();
 
             var dest = try dest_dir.makeOpenPath(entry.name, .{ .no_follow = true });
@@ -357,7 +357,7 @@ fn copyDir(source_dir: std.fs.Dir, dest_dir: std.fs.Dir, options: std.fs.CopyFil
 
             try copyDir(src, dest, options);
         } else {
-            try copyTree(source_dir, entry.name, dest_dir, entry.name, options);
+            try copyTree(source_dir.dir, entry.name, dest_dir, entry.name, options);
         }
     }
 }

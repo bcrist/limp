@@ -43,14 +43,14 @@ fn openFs(l: L) callconv(.C) c_int {
 
 fn fsAbsolutePath(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
     var alloc = temp.allocator();
 
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
     var result = fs.toAbsolute(alloc, path) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -60,14 +60,14 @@ fn fsAbsolutePath(l: L) callconv(.C) c_int {
 
 fn fsCanonicalPath(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
     var alloc = temp.allocator();
 
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
     var result = std.fs.cwd().realpathAlloc(alloc, path) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -77,13 +77,13 @@ fn fsCanonicalPath(l: L) callconv(.C) c_int {
 
 fn fsComposePath(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
     var alloc = temp.allocator();
 
     const count = c.lua_gettop(l);
     std.debug.assert(count >= 0);
     var paths = alloc.alloc([]const u8, @intCast(usize, count)) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -94,7 +94,7 @@ fn fsComposePath(l: L) callconv(.C) c_int {
     }
 
     const result = fs.composePath(alloc, paths, 0) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -104,13 +104,13 @@ fn fsComposePath(l: L) callconv(.C) c_int {
 
 fn fsComposePathSlash(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
     var alloc = temp.allocator();
 
     const count = c.lua_gettop(l);
     std.debug.assert(count >= 0);
     var paths = alloc.alloc([]const u8, @intCast(usize, count)) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -121,7 +121,7 @@ fn fsComposePathSlash(l: L) callconv(.C) c_int {
     }
 
     const result = fs.composePath(alloc, paths, '/') catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -172,7 +172,7 @@ fn fsResolvePath(l: L) callconv(.C) c_int {
             }
         } else {
             var temp = lua.getTempAlloc(l);
-            defer temp.reset(65536) catch {};
+            defer temp.reset();
             var alloc = temp.allocator();
 
             var search_path: []const u8 = undefined;
@@ -180,7 +180,7 @@ fn fsResolvePath(l: L) callconv(.C) c_int {
 
             const parts = [_][]const u8{ search_path, path };
             var combined = fs.composePath(alloc, &parts, 0) catch |err| {
-                _ = c.luaL_error(l, fs.errorName(err));
+                _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
             };
 
@@ -189,7 +189,7 @@ fn fsResolvePath(l: L) callconv(.C) c_int {
                     break :blk;
                 },
                 else => {
-                    _ = c.luaL_error(l, fs.errorName(err));
+                    _ = c.luaL_error(l, fs.errorName(err).ptr);
                     unreachable;
                 },
             };
@@ -204,11 +204,11 @@ fn fsResolvePath(l: L) callconv(.C) c_int {
         c.lua_pushvalue(l, 1);
         {
             var temp = lua.getTempAlloc(l);
-            defer temp.reset(65536) catch {};
+            defer temp.reset();
             var alloc = temp.allocator();
 
             const cwd = std.process.getCwdAlloc(alloc) catch |err| {
-                _ = c.luaL_error(l, fs.errorName(err));
+                _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
             };
 
@@ -255,7 +255,7 @@ fn fsPathExtension(l: L) callconv(.C) c_int {
 
 fn fsReplaceExtension(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
     var alloc = temp.allocator();
 
     var path: []const u8 = undefined;
@@ -265,7 +265,7 @@ fn fsReplaceExtension(l: L) callconv(.C) c_int {
     new_ext.ptr = c.luaL_checklstring(l, 2, &new_ext.len);
 
     var result = fs.replaceExtension(alloc, path, new_ext) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -275,11 +275,11 @@ fn fsReplaceExtension(l: L) callconv(.C) c_int {
 
 fn fsCwd(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
     var alloc = temp.allocator();
 
     const result = std.process.getCwdAlloc(alloc) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -292,7 +292,7 @@ fn fsSetCwd(l: L) callconv(.C) c_int {
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
     std.os.chdir(path) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -318,11 +318,11 @@ fn fsStat(l: L) callconv(.C) c_int {
     } else |statFileErr| switch (statFileErr) {
         error.IsDir => {
             var dir = std.fs.cwd().openDir(path, .{}) catch |err| {
-                _ = c.luaL_error(l, fs.errorName(err));
+                _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
             };
             stat = dir.stat() catch |err| {
-                _ = c.luaL_error(l, fs.errorName(err));
+                _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
             };
         },
@@ -330,7 +330,7 @@ fn fsStat(l: L) callconv(.C) c_int {
             exists = false;
         },
         else => {
-            _ = c.luaL_error(l, fs.errorName(statFileErr));
+            _ = c.luaL_error(l, fs.errorName(statFileErr).ptr);
             unreachable;
         },
     }
@@ -384,7 +384,7 @@ fn fsStat(l: L) callconv(.C) c_int {
 
 fn fsGetFileContents(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
     var alloc = temp.allocator();
 
     var path: []const u8 = undefined;
@@ -398,7 +398,7 @@ fn fsGetFileContents(l: L) callconv(.C) c_int {
             return 0;
         },
         else => {
-            _ = c.luaL_error(l, fs.errorName(err));
+            _ = c.luaL_error(l, fs.errorName(err).ptr);
             unreachable;
         },
     };
@@ -415,20 +415,20 @@ fn fsPutFileContents(l: L) callconv(.C) c_int {
     contents.ptr = c.luaL_tolstring(l, 2, &contents.len);
 
     var af = std.fs.cwd().atomicFile(path, .{}) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
     // We can't defer af.deinit(); because luaL_error longjmps away.
 
     af.file.writeAll(contents) catch |err| {
         af.deinit();
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
     af.finish() catch |err| {
         af.deinit();
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -450,18 +450,18 @@ fn fsMove(l: L) callconv(.C) c_int {
         std.fs.cwd().access(dest_path, .{}) catch |err| switch (err) {
             error.FileNotFound => exists = false,
             else => {
-                _ = c.luaL_error(l, fs.errorName(err));
+                _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
             }
         };
         if (exists) {
-            _ = c.luaL_error(l, fs.errorName(error.PathAlreadyExists));
+            _ = c.luaL_error(l, fs.errorName(error.PathAlreadyExists).ptr);
             unreachable;
         }
     }
 
     std.fs.cwd().rename(src_path, dest_path) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -482,19 +482,19 @@ fn fsCopy(l: L) callconv(.C) c_int {
         std.fs.cwd().access(dest_path, .{}) catch |err| switch (err) {
             error.FileNotFound => exists = false,
             else => {
-                _ = c.luaL_error(l, fs.errorName(err));
+                _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
             }
         };
         if (exists) {
-            _ = c.luaL_error(l, fs.errorName(error.PathAlreadyExists));
+            _ = c.luaL_error(l, fs.errorName(error.PathAlreadyExists).ptr);
             unreachable;
         }
     }
 
     var cwd = std.fs.cwd();
     fs.copyTree(cwd, src_path, cwd, dest_path, .{}) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -511,18 +511,18 @@ fn fsDelete(l: L) callconv(.C) c_int {
         error.IsDir => {
             if (recursive) {
                 std.fs.cwd().deleteTree(path) catch |err| {
-                    _ = c.luaL_error(l, fs.errorName(err));
+                    _ = c.luaL_error(l, fs.errorName(err).ptr);
                     unreachable;
                 };
             } else {
                 std.fs.cwd().deleteDir(path) catch |err| {
-                    _ = c.luaL_error(l, fs.errorName(err));
+                    _ = c.luaL_error(l, fs.errorName(err).ptr);
                     unreachable;
                 };
             }
         },
         else => {
-            _ = c.luaL_error(l, fs.errorName(deleteFileErr));
+            _ = c.luaL_error(l, fs.errorName(deleteFileErr).ptr);
             unreachable;
         }
     };
@@ -535,7 +535,7 @@ fn fsEnsureDirExists(l: L) callconv(.C) c_int {
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
     std.fs.cwd().makePath(path) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
@@ -544,7 +544,7 @@ fn fsEnsureDirExists(l: L) callconv(.C) c_int {
 
 fn fsVisit(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
     var alloc = temp.allocator();
 
     var path: []const u8 = undefined;
@@ -553,26 +553,22 @@ fn fsVisit(l: L) callconv(.C) c_int {
     var recursive = c.lua_gettop(l) >= 3 and c.lua_toboolean(l, 3) != 0;
     var no_follow = c.lua_gettop(l) >= 4 and c.lua_toboolean(l, 4) != 0;
 
-    var dir = std.fs.cwd().openDir(path, .{
-        .access_sub_paths = true,
-        .iterate = true,
-        .no_follow = no_follow,
-    }) catch |err| {
-        _ = c.luaL_error(l, fs.errorName(err));
+    var dir = std.fs.cwd().openIterableDir(path, .{ .no_follow = no_follow }) catch |err| {
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
     if (recursive) {
         var walker = dir.walk(alloc) catch |err| {
             dir.close();
-            _ = c.luaL_error(l, fs.errorName(err));
+            _ = c.luaL_error(l, fs.errorName(err).ptr);
             unreachable;
         };
 
         while (walker.next() catch |err| {
             walker.deinit();
             dir.close();
-            _ = c.luaL_error(l, fs.errorName(err));
+            _ = c.luaL_error(l, fs.errorName(err).ptr);
             unreachable;
         }) |entry| {
             var kind = @tagName(entry.kind);
@@ -609,7 +605,7 @@ fn fsVisit(l: L) callconv(.C) c_int {
         var iter = dir.iterate();
         while (iter.next() catch |err| {
             dir.close();
-            _ = c.luaL_error(l, fs.errorName(err));
+            _ = c.luaL_error(l, fs.errorName(err).ptr);
             unreachable;
         }) |entry| {
             var kind = @tagName(entry.kind);

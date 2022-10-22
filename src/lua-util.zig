@@ -24,7 +24,7 @@ fn openUtil(l: L) callconv(.C) c_int {
 
 fn utilDeflate(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
 
     var uncompressed: []const u8 = undefined;
     uncompressed.ptr = c.luaL_checklstring(l, 1, &uncompressed.len);
@@ -66,7 +66,7 @@ fn utilDeflate(l: L) callconv(.C) c_int {
 
 fn utilInflate(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset(65536) catch {};
+    defer temp.reset();
 
     var compressed: []const u8 = undefined;
     compressed.ptr = c.luaL_checklstring(l, 1, &compressed.len);

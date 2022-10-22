@@ -25,9 +25,10 @@ pub fn getTempAlloc(l: L) *allocators.TempAllocator {
 pub const State = struct {
     l: L,
 
-    pub fn init() State {
+    pub fn init() !State {
         var l = c.luaL_newstate();
-        getTempAlloc(l).* = allocators.TempAllocator.init(std.heap.page_allocator);
+        errdefer c.lua_close(l);
+        getTempAlloc(l).* = try allocators.TempAllocator.init(100 * 1024 * 1024);
         return .{
             .l = l,
         };
@@ -112,18 +113,26 @@ pub const State = struct {
         self.removeIndex(-2);
     }
 
+    const TableStringParams = struct {
+        slot: []const u8,
+        value: []const u8,
+    };
+
     pub fn pushTableString(self: State, table_index: c_int, slot: []const u8) !void {
-        var mutable_slot = slot;
+        var params = TableStringParams {
+            .slot = slot,
+            .value = "",
+        };
 
         c.lua_pushvalue(self.l, table_index);
         self.pushCFunction(pushTableStringUnsafe);
         self.moveToIndex(-2);
-        self.pushPointer(&mutable_slot);
+        self.pushPointer(&params);
         try self.call(2, 1);
     }
     fn pushTableStringUnsafe(l: L) callconv(.C) c_int {
-        var slot_ptr = @ptrCast(*const []const u8, @alignCast(8, c.lua_topointer(l, 2)));
-        _ = c.lua_pushlstring(l, slot_ptr.*.ptr, slot_ptr.*.len);
+        const params = @ptrCast(*const TableStringParams, @alignCast(8, c.lua_topointer(l, 2))).*;
+        _ = c.lua_pushlstring(l, params.slot.ptr, params.slot.len);
         _ = c.lua_gettable(l, 1);
         return 1;
     }
@@ -135,21 +144,21 @@ pub const State = struct {
     }
 
     pub fn setTableStringString(self: State, table_index: c_int, slot: []const u8, value: []const u8) !void {
-        var mutable_slot = slot;
-        var mutable_value = value;
+        var params = TableStringParams {
+            .slot = slot,
+            .value = value,
+        };
 
         c.lua_pushvalue(self.l, table_index);
         self.pushCFunction(setTableStringStringUnsafe);
         self.moveToIndex(-2);
-        self.pushPointer(&mutable_slot);
-        self.pushPointer(&mutable_value);
-        try self.call(3, 0);
+        self.pushPointer(&params);
+        try self.call(2, 0);
     }
     fn setTableStringStringUnsafe(l: L) callconv(.C) c_int {
-        var slot_ptr = @ptrCast(*const []const u8, @alignCast(8, c.lua_topointer(l, 2)));
-        var value_ptr = @ptrCast(*const []const u8, @alignCast(8, c.lua_topointer(l, 3)));
-        _ = c.lua_pushlstring(l, slot_ptr.*.ptr, slot_ptr.*.len);
-        _ = c.lua_pushlstring(l, value_ptr.*.ptr, value_ptr.*.len);
+        const params = @ptrCast(*const TableStringParams, @alignCast(8, c.lua_topointer(l, 2))).*;
+        _ = c.lua_pushlstring(l, params.slot.ptr, params.slot.len);
+        _ = c.lua_pushlstring(l, params.value.ptr, params.value.len);
         c.lua_settable(l, 1);
         return 0;
     }

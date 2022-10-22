@@ -15,8 +15,9 @@ const arg_alloc = arg_arena.allocator();
 const global_alloc = allocators.global_arena.allocator();
 const temp_alloc = allocators.temp_arena.allocator();
 
-var option_verbose = false;
-var option_quiet = false;
+pub var option_verbose = false;
+pub var option_very_verbose = false;
+pub var option_quiet = false;
 var option_test = false;
 var option_show_version = false;
 var option_show_help = false;
@@ -37,11 +38,14 @@ const ExitCode = packed struct {
 };
 var exit_code = ExitCode{};
 
-pub fn main() void {
-    run() catch {
-        if (@errorReturnTrace()) |trace| std.debug.dumpStackTrace(trace.*);
-        exit_code.unknown = true;
-    };
+pub fn main() !void {
+    allocators.temp_arena = try allocators.TempAllocator.init(1024 * 1024 * 1024);
+
+    try run();
+    // run() catch {
+    //     if (@errorReturnTrace()) |trace| std.debug.dumpStackTrace(trace.*);
+    //     exit_code.unknown = true;
+    // };
     std.process.exit(@bitCast(u8, exit_code));
 }
 
@@ -68,26 +72,26 @@ fn run() !void {
     const stdout = std.io.getStdOut().writer();
 
     if (option_show_version) {
-        _ = try stdout.write("LIMP 0.2.2  Copyright (C) 2011-2022 Benjamin M. Crist\n");
+        try stdout.writeAll("LIMP 0.2.3  Copyright (C) 2011-2022 Benjamin M. Crist\n");
         try stdout.print("{s}\n", .{lua.c.LUA_COPYRIGHT});
         try stdout.print("zlib {s}  Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler\n", .{zlib.c.ZLIB_VERSION});
     }
 
     if (option_show_help) {
         if (option_show_version) {
-            _ = try stdout.write("\n");
+            try stdout.writeAll("\n");
         }
 
-        _ = try stdout.write(help_common);
+        try stdout.writeAll(help_common);
 
         if (option_verbose_help) {
-            _ = try stdout.write(help_verbose);
+            try stdout.writeAll(help_verbose);
         }
 
-        _ = try stdout.write(help_options);
+        try stdout.writeAll(help_options);
 
         if (option_verbose_help) {
-            _ = try stdout.write(help_exitcodes);
+            try stdout.writeAll(help_exitcodes);
         }
     }
 
@@ -103,26 +107,31 @@ fn run() !void {
         }
     }
 
-    var cwd = std.fs.cwd();
+    // TODO running with mutiple input paths results in
+    // Unexpected error searching directory: error.Unexpected
+    // possibly a bug with std.fs.cwd()?  Maybe you can't store
+    // the result if you plan to change the cwd?
+    var origin = try std.fs.cwd().openDir(".", .{});
+    defer origin.close();
     for (input_paths.items) |input_path| {
-        processInput(input_path, &cwd, true);
+        processInput(input_path, origin, true);
         if (shouldStopProcessing()) break;
     }
 }
 
-fn processInput(path: []const u8, within_dir: *std.fs.Dir, explicitly_requested: bool) void {
+fn processInput(path: []const u8, within_dir: std.fs.Dir, explicitly_requested: bool) void {
     if (!processDir(path, within_dir)) processFile(path, within_dir, explicitly_requested);
 }
 
-fn processDir(path: []const u8, within_dir: *std.fs.Dir) bool {
+fn processDir(path: []const u8, within_dir: std.fs.Dir) bool {
     return processDirInner(path, within_dir) catch |err| {
         printUnexpectedPathError("searching directory", path, within_dir, err);
         return true;
     };
 }
 
-fn processDirInner(path: []const u8, within_dir: *std.fs.Dir) !bool {
-    var dir = within_dir.openDir(path, .{ .iterate = true }) catch |err| switch (err) {
+fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
+    var dir = within_dir.openIterableDir(path, .{}) catch |err| switch (err) {
         error.NotDir => return false,
         error.FileNotFound => {
             printPathError("Directory or file not found", path, within_dir);
@@ -141,24 +150,24 @@ fn processDirInner(path: []const u8, within_dir: *std.fs.Dir) !bool {
     var iter = dir.iterate();
     while (try iter.next()) |entry| {
         switch (entry.kind) {
-            std.fs.Dir.Entry.Kind.File => {
-                processFile(entry.name, &dir, false);
+            std.fs.IterableDir.Entry.Kind.File => {
+                processFile(entry.name, dir.dir, false);
             },
-            std.fs.Dir.Entry.Kind.Directory => {
+            std.fs.IterableDir.Entry.Kind.Directory => {
                 if (option_recursive) {
-                    processInput(entry.name, &dir, false);
+                    processInput(entry.name, dir.dir, false);
                 }
             },
-            std.fs.Dir.Entry.Kind.SymLink => {
+            std.fs.IterableDir.Entry.Kind.SymLink => {
                 var symlink_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-                if (dir.readLink(entry.name, &symlink_buffer)) |new_path| {
+                if (dir.dir.readLink(entry.name, &symlink_buffer)) |new_path| {
                     if (option_recursive) {
-                        processInput(new_path, &dir, false);
+                        processInput(new_path, dir.dir, false);
                     } else {
-                        processFile(new_path, &dir, false);
+                        processFile(new_path, dir.dir, false);
                     }
                 } else |err| {
-                    printUnexpectedPathError("reading link", entry.name, &dir, err);
+                    printUnexpectedPathError("reading link", entry.name, dir.dir, err);
                 }
             },
             else => {},
@@ -169,13 +178,13 @@ fn processDirInner(path: []const u8, within_dir: *std.fs.Dir) !bool {
     return true;
 }
 
-fn processFile(path: []const u8, within_dir: *std.fs.Dir, explicitly_requested: bool) void {
+fn processFile(path: []const u8, within_dir: std.fs.Dir, explicitly_requested: bool) void {
     processFileInner(path, within_dir, explicitly_requested) catch |err| {
         printUnexpectedPathError("processing file", path, within_dir, err);
     };
 }
 
-fn processFileInner(path: []const u8, within_dir: *std.fs.Dir, explicitly_requested: bool) !void {
+fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_requested: bool) !void {
     var ext_lower_buf: [128]u8 = undefined;
     var extension = std.fs.path.extension(path);
     if (extension.len > 1 and extension[0] == '.') {
@@ -186,15 +195,18 @@ fn processFileInner(path: []const u8, within_dir: *std.fs.Dir, explicitly_reques
     }
 
     if (!explicitly_requested and (extension.len == 0 or !extensions.contains(extension))) {
+        if (option_very_verbose) {
+            printPathError("Unrecognized extension", path, within_dir);
+        }
         return;
     }
 
-    allocators.temp_arena.reset(5 << 2) catch {};
+    allocators.temp_arena.reset();
 
     var old_file_contents = within_dir.readFileAlloc(temp_alloc, path, 1 << 30) catch |err| {
         switch (err) {
             error.FileNotFound => {
-                if (explicitly_requested) {
+                if (explicitly_requested or option_very_verbose) {
                     printPathError("Not a file or directory", path, within_dir);
                 }
                 return;
@@ -205,6 +217,18 @@ fn processFileInner(path: []const u8, within_dir: *std.fs.Dir, explicitly_reques
             },
         }
     };
+
+    if (!option_quiet and old_file_contents.len >= 2) {
+        if (std.mem.eql(u8, old_file_contents[0..2], "\xFF\xFE") or std.mem.eql(u8, old_file_contents[0..2], "\xFE\xFF")) {
+            printPathError("File is UTF-16 encoded; LIMP only supports UTF-8 files", path, within_dir);
+            return;
+        } else for (old_file_contents[0..@minimum(40, old_file_contents.len - 1)]) |c| {
+            if (c == 0) {
+                printPathError("File might be UTF-16 encoded; LIMP only supports UTF-8 files", path, within_dir);
+                break;
+            }
+        }
+    }
 
     const real_path = within_dir.realpathAlloc(temp_alloc, path) catch path;
 
@@ -217,6 +241,9 @@ fn processFileInner(path: []const u8, within_dir: *std.fs.Dir, explicitly_reques
         }
         switch (try proc.process()) {
             .ignore => {
+                if (option_verbose) {
+                    printPathStatus("Ignoring", path, within_dir);
+                }
                 exit_code.bad_input = true;
             },
             .modified => {
@@ -242,26 +269,25 @@ fn processFileInner(path: []const u8, within_dir: *std.fs.Dir, explicitly_reques
         // for (proc.parsed_sections.items) |section| {
         //     try section.debug();
         // }
-    } else if (explicitly_requested) {
+    } else if (explicitly_requested or option_very_verbose) {
         printPathStatus("Nothing to process", path, within_dir);
     }
 }
 
-fn printPathStatus(detail: []const u8, path: []const u8, within_dir: *std.fs.Dir) void {
+fn printPathStatus(detail: []const u8, path: []const u8, within_dir: std.fs.Dir) void {
     var real_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
     std.io.getStdOut().writer().print("{s}: {s}\n", .{ real_path, detail }) catch {};
-    exit_code.unknown = true;
 }
 
-fn printPathError(detail: []const u8, path: []const u8, within_dir: *std.fs.Dir) void {
+fn printPathError(detail: []const u8, path: []const u8, within_dir: std.fs.Dir) void {
     var real_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
     std.io.getStdErr().writer().print("{s}: {s}\n", .{ real_path, detail }) catch {};
     exit_code.unknown = true;
 }
 
-fn printUnexpectedPathError(where: []const u8, path: []const u8, within_dir: *std.fs.Dir, err: anyerror) void {
+fn printUnexpectedPathError(where: []const u8, path: []const u8, within_dir: std.fs.Dir, err: anyerror) void {
     var real_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
     std.io.getStdErr().writer().print("{s}: Unexpected error {s}: {}\n", .{ real_path, where, err }) catch {};
@@ -307,14 +333,18 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
     } else if (std.mem.eql(u8, arg, "--test")) {
         option_test = true;
     } else if (std.mem.eql(u8, arg, "--verbose")) {
-        option_verbose = true;
+        if (option_verbose) {
+            option_very_verbose = true;
+        } else {
+            option_verbose = true;
+        }
     } else if (std.mem.eql(u8, arg, "--quiet")) {
         option_quiet = true;
     } else if (std.mem.eql(u8, arg, "--extensions")) {
         if (args.next()) |list| {
             try processExtensionList(list);
         } else {
-            _ = try std.io.getStdErr().writer().write("Expected extension list after --extensions\n");
+            try std.io.getStdErr().writer().writeAll("Expected extension list after --extensions\n");
             exit_code.bad_arg = true;
         }
     } else if (std.mem.startsWith(u8, arg, "--extensions=")) {
@@ -323,7 +353,7 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
         if (args.next()) |path| {
             depfile_path = try global_alloc.dupe(u8, path);
         } else {
-            _ = try std.io.getStdErr().writer().write("Expected input directory path after --depfile\n");
+            try std.io.getStdErr().writer().writeAll("Expected input directory path after --depfile\n");
             exit_code.bad_arg = true;
         }
     } else if (std.mem.startsWith(u8, arg, "--depfile=")) {
@@ -339,7 +369,13 @@ fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
         'R' => option_recursive = true,
         'n' => option_dry_run = true,
         'b' => option_break_on_fail = true,
-        'v' => option_verbose = true,
+        'v' => {
+            if (option_verbose) {
+                option_very_verbose = true;
+            } else {
+                option_verbose = true;
+            }
+        },
         'q' => option_quiet = true,
         'V' => option_show_version = true,
         '?' => option_show_help = true,
@@ -347,7 +383,7 @@ fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
             if (args.next()) |list| {
                 try processExtensionList(list);
             } else {
-                _ = try std.io.getStdErr().writer().write("Expected extension list after -x\n");
+                try std.io.getStdErr().writer().writeAll("Expected extension list after -x\n");
                 exit_code.bad_arg = true;
             }
         },

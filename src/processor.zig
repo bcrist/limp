@@ -1,4 +1,5 @@
 const std = @import("std");
+const root = @import("root");
 const builtin = @import("builtin");
 const allocators = @import("allocators.zig");
 const temp_alloc = allocators.temp_arena.allocator();
@@ -206,6 +207,11 @@ pub const Processor = struct {
             detectNewlineStyleAndIndent(&section, file_newline_style);
             section.limp_header = limp_header;
 
+            if (root.option_very_verbose) {
+                const offset = @ptrToInt(remaining.ptr) - @ptrToInt(file_contents.ptr) + opener_loc;
+                std.io.getStdOut().writer().print("{s}:{}: Found LIMP header at offset {}.\n", .{ self.file_path, newlines_seen, offset }) catch {};
+            }
+
             // find the end of the limp program, and parse the number of generated lines (if present)
             var closer_search_loc = opener_loc + limp_header.len;
             while (std.mem.indexOfAnyPos(u8, remaining, closer_search_loc, &initial_bytes_of_closers)) |potential_closer_loc| {
@@ -264,7 +270,9 @@ pub const Processor = struct {
                     closer_search_loc = potential_closer_loc + 1;
                 }
             } else {
-                // EOF before closer was found - file truncation or corruption?
+                if (!root.option_quiet) {
+                    std.io.getStdErr().writer().print("{s}: Found EOF before end of LIMP; possible file truncation?\n", .{ self.file_path, }) catch {};
+                }
                 section.raw_program = remaining[opener_loc + limp_header.len ..];
                 newlines_seen += try parseRawProgram(&section, newlines_seen, full_line_prefix);
                 remaining = "";
@@ -280,14 +288,14 @@ pub const Processor = struct {
 
     pub fn isProcessable(self: *Processor) bool {
         switch (self.parsed_sections.items.len) {
-            2...std.math.maxInt(usize) => return true,
+            0 => return false,
             1 => return self.parsed_sections.items[0].limp_header.len > 0,
-            else => return false,
+            else => return true,
         }
     }
 
     pub fn process(self: *Processor) !ProcessResult {
-        const l = lua.State.init();
+        const l = try lua.State.init();
         defer l.deinit();
 
         return self.processInner(l) catch |err| switch (err) {

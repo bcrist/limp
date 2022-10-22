@@ -1,17 +1,20 @@
 const std = @import("std");
-const allocators = @import("limp/allocators.zig");
+const TempAllocator = @import("pkg/Zig-TempAllocator/temp_allocator.zig");
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
+    const exe_name = if (mode == .Debug) "limp-debug" else "limp";
 
-    const exe = b.addExecutable("limp", "limp/main.zig");
+    const exe = b.addExecutable(exe_name, "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.linkLibC();
+    exe.addPackagePath("TempAllocator", "pkg/Zig-TempAllocator/temp_allocator.zig");
+    exe.addPackagePath("sx", "pkg/Zig-SX/sx.zig");
     exe.addIncludeDir("lua/");
     exe.addIncludeDir("zlib/");
-    var extraSpace = std.fmt.comptimePrint("{}", .{@sizeOf(allocators.TempAllocator)});
+    var extraSpace = std.fmt.comptimePrint("{}", .{@sizeOf(TempAllocator)});
     exe.defineCMacro("LUA_EXTRASPACE", extraSpace);
     exe.defineCMacro("Z_SOLO", "");
     exe.defineCMacro("ZLIB_CONST", "");
@@ -59,7 +62,7 @@ pub fn build(b: *std.build.Builder) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const exe_tests = b.addTest("limp/main.zig");
+    const exe_tests = b.addTest("src/main.zig");
     exe_tests.setTarget(target);
     exe_tests.setBuildMode(mode);
 

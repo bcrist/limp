@@ -47,12 +47,14 @@ pub fn initDefaults() !void {
     try langs.put("html", sgml_tokens);
 
     try langs.put("zig", LangTokens.init("//[[", "]]", "//"));
+    try langs.put("lci", LangTokens.init("//[[", "]]", "//"));
     try langs.put("bat", LangTokens.init(":::", ":::", "::"));
     try langs.put("cmd", LangTokens.init(":::", ":::", "::"));
     try langs.put("sh", LangTokens.init("##", "##", "#"));
     try langs.put("ninja", LangTokens.init("##", "##", "#"));
     try langs.put("lua", LangTokens.init("--[==[", "]==]", ""));
     try langs.put("sql", LangTokens.init("---", "---", "--"));
+    try langs.put("sx", LangTokens.init("(#\"", "\")", ""));
 
     try langs.put("!!", LangTokens.init("!!", "!!", ""));
 }
