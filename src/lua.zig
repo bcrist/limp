@@ -29,7 +29,7 @@ pub const State = struct {
         var l = c.luaL_newstate();
         errdefer c.lua_close(l);
         getTempAlloc(l).* = try allocators.TempAllocator.init(100 * 1024 * 1024);
-        return .{
+        return State {
             .l = l,
         };
     }

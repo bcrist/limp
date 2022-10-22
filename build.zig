@@ -38,6 +38,7 @@ pub fn build(b: *std.build.Builder) void {
 
     const c_flags = [_][]const u8{
         "-std=c99",
+        "-fno-strict-aliasing",
         "-O2",
         "-Wall",
         "-Wextra",
@@ -50,6 +51,8 @@ pub fn build(b: *std.build.Builder) void {
     inline for (zlib_c_files) |c_file| {
         exe.addCSourceFile("zlib/" ++ c_file, &c_flags);
     }
+
+    exe.single_threaded = true;
 
     exe.install();
 

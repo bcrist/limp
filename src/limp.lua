@@ -171,7 +171,7 @@ function normalize_newlines (str)
          out[n] = str:sub(search_start, nl_start - 1)
          out[n + 1] = nl_style
          n = n + 2
-         
+
          if str:byte(nl_start) == '\r' and nl_start < str_len and str:byte(nl_start + 1) == '\n' then
             search_start = nl_start + 2
          else
@@ -187,7 +187,7 @@ function normalize_newlines (str)
 end
 
 function indent_newlines (str)
-   return normalize_newlines(str):gsub(nl_style, nl_style .. get_indent())
+   return (normalize_newlines(str):gsub(nl_style, nl_style .. get_indent()))
 end
 
 do -- write
@@ -444,11 +444,15 @@ function write_file (path)
       write(indent_newlines(contents))
    end
 end
-
+ 
 -- Passes through the output from from a child process's stdout to the generated code.  stderr is not redirected.
 function write_proc (command)
    local f = io.popen(command, 'r')
-   write(indent_newlines(f:read('a')))
+   if f == nil then
+      error("Failed to run command: " .. command)
+   end
+   local results = f:read('a')
+   write(indent_newlines(results))
    f:close()
 end
 
