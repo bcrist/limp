@@ -255,9 +255,10 @@ A comparison function suitible for use with `sort` or `spairs` that compares str
 * Subsequences of decimal digits are (conceptually) replaced with a single numeric atom whose value is the same (when interpretted in base 10) such that `table.sort({'x1', 'x10', 'x2', 'x20'}, natural_cmp)` becomes `{'x1', 'x2', 'x10', 'x20'}`.
 * If two strings are considered equal using the rules above, they are compared lexicographically.
 
-    function spairs (table)
-    function spairs (table, comparator)
-
+```
+function spairs (table)
+function spairs (table, comparator)
+```
 Iterator generator like `pairs`, except keys are visited in sorted order.  The second parameter behaves as in `table.sort`.
 
     function nl ()
