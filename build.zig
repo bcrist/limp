@@ -1,4 +1,5 @@
 const std = @import("std");
+const config = @import("build_config.zig");
 const TempAllocator = @import("pkg/Zig-TempAllocator/temp_allocator.zig");
 
 pub fn build(b: *std.build.Builder) void {
@@ -6,14 +7,21 @@ pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
     const exe_name = if (mode == .Debug) "limp-debug" else "limp";
 
+    const config_step = config.ConfigStep.create(b) catch unreachable;
+    const config_pkg = std.build.Pkg {
+        .name = "config",
+        .source = .{ .generated = &config_step.generated_file },
+    };
+
     const exe = b.addExecutable(exe_name, "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.linkLibC();
+    exe.addPackage(config_pkg);
     exe.addPackagePath("TempAllocator", "pkg/Zig-TempAllocator/temp_allocator.zig");
     exe.addPackagePath("sx", "pkg/Zig-SX/sx.zig");
-    exe.addIncludeDir("lua/");
-    exe.addIncludeDir("zlib/");
+    exe.linkLibC();
+    exe.addIncludePath("lua/");
+    exe.addIncludePath("zlib/");
     var extraSpace = std.fmt.comptimePrint("{}", .{@sizeOf(TempAllocator)});
     exe.defineCMacro("LUA_EXTRASPACE", extraSpace);
     exe.defineCMacro("Z_SOLO", "");

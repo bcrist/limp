@@ -62,6 +62,52 @@ do -- strict.lua
 
 end
 
+local function is_digit (ch) return ch ~= nil and ch >= 48 and ch <= 57 end
+function natural_cmp (a, b)
+   a = tostring(a)
+   b = tostring(b)
+
+   local ia = 1
+   local ib = 1
+   while true do
+      local ca = a:byte(ia)
+      local cb = b:byte(ib)
+
+      if ca == nil and cb ~= nil then
+         return true
+      elseif cb == nil then
+         return false
+      elseif is_digit(ca) and is_digit(cb) then
+         local ta = 0
+         repeat
+            ta = ta * 10 + ca - 48
+            ia = ia + 1
+            ca = a:byte(ia)
+         until not is_digit(ca)
+
+         local tb = 0
+         repeat
+            tb = tb * 10 + cb - 48
+            ib = ib + 1
+            cb = b:byte(ib)
+         until not is_digit(cb)
+
+         if ta < tb then
+            return true
+         elseif ta > tb then
+            return false
+         end
+      elseif ca < cb then
+         return true
+      elseif ca > cb then
+         return false
+      else
+         ia = ia + 1
+         ib = ib + 1
+      end
+   end
+end
+
 local function spairs_next(ctx, last)
    local next_index = nil
    if last == nil then

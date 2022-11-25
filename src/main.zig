@@ -1,4 +1,5 @@
 const std = @import("std");
+const config = @import("config");
 const allocators = @import("allocators.zig");
 const languages = @import("languages.zig");
 const processor = @import("processor.zig");
@@ -9,8 +10,6 @@ const help_common = @embedFile("help-common.txt");
 const help_verbose = @embedFile("help-verbose.txt");
 const help_options = @embedFile("help-options.txt");
 const help_exitcodes = @embedFile("help-exitcodes.txt");
-
-const version = "0.2.5";
 
 var arg_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 const arg_alloc = arg_arena.allocator();
@@ -74,7 +73,7 @@ fn run() !void {
     const stdout = std.io.getStdOut().writer();
 
     if (option_show_version) {
-        try stdout.print("LIMP {s}  Copyright (C) 2011-2022 Benjamin M. Crist\n", .{version});
+        try stdout.print("LIMP {s}  Copyright (C) 2011-2022 Benjamin M. Crist\n", .{config.version});
         try stdout.print("{s}\n", .{lua.c.LUA_COPYRIGHT});
         try stdout.print("zlib {s}  Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler\n", .{zlib.c.ZLIB_VERSION});
     }
@@ -224,7 +223,7 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
         if (std.mem.eql(u8, old_file_contents[0..2], "\xFF\xFE") or std.mem.eql(u8, old_file_contents[0..2], "\xFE\xFF")) {
             printPathError("File is UTF-16 encoded; LIMP only supports UTF-8 files", path, within_dir);
             return;
-        } else for (old_file_contents[0..@minimum(40, old_file_contents.len - 1)]) |c| {
+        } else for (old_file_contents[0..@min(40, old_file_contents.len - 1)]) |c| {
             if (c == 0) {
                 printPathError("File might be UTF-16 encoded; LIMP only supports UTF-8 files", path, within_dir);
                 break;

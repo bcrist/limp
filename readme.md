@@ -247,11 +247,14 @@ Print (to stderr) the line number and contents of the current line being parsed,
 
 All functions from the [Lua Standard Libraries](https://www.lua.org/manual/5.4/manual.html#6) are available for use.
 
+    function natural_cmp (a, b)
+
+A comparison function suitible for use with `sort` or `spairs` that compares strings using a human-alphabetical ordering.  Uppercase letters are interleaved in with lowercase variants such that `table.sort({'Apple', 'banana', 'Blueberry', 'apricot'})` becomes `{'Apple', 'apricot', 'Blueberry', 'banana'}`.  Subsequences of decimal digits are (conceptually) replaced with a single numeric atom whose value is same (when interpretted in base 10) such that `table.sort({'x1', 'x10', 'x2', 'x20'})` becomes `{'x1', 'x2', 'x10', 'x20'}`.
+
     function spairs (table)
     function spairs (table, comparator)
 
-Iterator generator like `pairs`, except keys are visited in sorted order.  By default, the order is lexicographic, but a custom
-comparator may be provided as for `table.sort`.
+Iterator generator like `pairs`, except keys are visited in sorted order.  The second parameter behaves as in `table.sort`.
 
     function nl ()
 
