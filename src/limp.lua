@@ -48,7 +48,7 @@ do -- strict.lua
       end
       rawset(t, n, v)
    end
-  
+
    mt.__index = function (t, n)
       if __STRICT and not mt.__declared[n] and debug.getinfo(2, "S").what ~= "C" then
          error("variable '"..n.."' is not declared", 2)
@@ -62,7 +62,10 @@ do -- strict.lua
 
 end
 
-local function is_digit (ch) return ch ~= nil and ch >= 48 and ch <= 57 end
+local function is_digit (ch)
+   return ch ~= nil and ch >= 48 and ch <= 57
+end
+
 function natural_cmp (a, b)
    a = tostring(a)
    b = tostring(b)
@@ -73,8 +76,12 @@ function natural_cmp (a, b)
       local ca = a:byte(ia)
       local cb = b:byte(ib)
 
-      if ca == nil and cb ~= nil then
-         return true
+      if ca == nil then
+         if cb == nil then
+            break
+         else
+            return true
+         end
       elseif cb == nil then
          return false
       elseif is_digit(ca) and is_digit(cb) then
@@ -97,15 +104,27 @@ function natural_cmp (a, b)
          elseif ta > tb then
             return false
          end
-      elseif ca < cb then
-         return true
-      elseif ca > cb then
-         return false
       else
-         ia = ia + 1
-         ib = ib + 1
+         if ca >= 97 and ca <= 122 then
+            ca = ca - 32
+         end
+
+         if cb >= 97 and cb <= 122 then
+            cb = cb - 32
+         end
+
+         if ca < cb then
+            return true
+         elseif ca > cb then
+            return false
+         else
+            ia = ia + 1
+            ib = ib + 1
+         end
       end
    end
+
+   return a < b
 end
 
 local function spairs_next(ctx, last)
@@ -352,7 +371,7 @@ do -- write
          write(comment_begin)
       end
    end
-   
+
    function end_comment ()
       if true == in_comment then
          in_comment = false
@@ -512,7 +531,7 @@ function template (source)
          if nl_start then
             template_parts[#template_parts + 1] = text:sub(search_start, nl_start - 1)
             template_parts[#template_parts + 1] = nl
-            
+
             if text:byte(nl_start) == '\r' and nl_start < #text and text:byte(nl_start + 1) == '\n' then
                search_start = nl_start + 2
             else
@@ -606,7 +625,7 @@ do -- include
       if not include_name then
          error 'Must specify include script name!'
       end
-      
+
       local existing = chunks[include_name]
       if existing ~= nil then
          return existing

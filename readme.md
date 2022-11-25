@@ -249,7 +249,11 @@ All functions from the [Lua Standard Libraries](https://www.lua.org/manual/5.4/m
 
     function natural_cmp (a, b)
 
-A comparison function suitible for use with `sort` or `spairs` that compares strings using a human-alphabetical ordering.  Uppercase letters are interleaved in with lowercase variants such that `table.sort({'Apple', 'banana', 'Blueberry', 'apricot'})` becomes `{'Apple', 'apricot', 'Blueberry', 'banana'}`.  Subsequences of decimal digits are (conceptually) replaced with a single numeric atom whose value is same (when interpretted in base 10) such that `table.sort({'x1', 'x10', 'x2', 'x20'})` becomes `{'x1', 'x2', 'x10', 'x20'}`.
+A comparison function suitible for use with `sort` or `spairs` that compares strings using a human-alphabetical ordering:
+
+* Lowercase letters are compared as if they were uppercase, such that `table.sort({'Apple', 'banana', '.', '_', 'Blueberry', 'apricot'}, natural_cmp)` becomes `{'.', 'Apple', 'apricot', 'banana', 'Blueberry', '_'}`.
+* Subsequences of decimal digits are (conceptually) replaced with a single numeric atom whose value is the same (when interpretted in base 10) such that `table.sort({'x1', 'x10', 'x2', 'x20'}, natural_cmp)` becomes `{'x1', 'x2', 'x10', 'x20'}`.
+* If two strings are considered equal using the rules above, they are compared lexicographically.
 
     function spairs (table)
     function spairs (table, comparator)
