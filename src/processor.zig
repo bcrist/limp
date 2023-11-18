@@ -45,8 +45,8 @@ pub const Processor = struct {
         };
     }
 
-    fn countNewlines(buf: []const u8) i64 {
-        var newline_count: i64 = 0;
+    fn countNewlines(buf: []const u8) u64 {
+        var newline_count: u64 = 0;
         var search_start_loc: usize = 0;
 
         while (std.mem.indexOfAnyPos(u8, buf, search_start_loc, "\r\n")) |end_of_line| {
@@ -127,9 +127,9 @@ pub const Processor = struct {
         }
     }
 
-    fn parseRawProgram(section: *Section, newlines_seen: i64, full_line_prefix: []const u8) !i64 {
+    fn parseRawProgram(section: *Section, newlines_seen: u64, full_line_prefix: []const u8) !u64 {
         var raw_program = section.raw_program;
-        var remaining = try temp_alloc.alloc(u8, raw_program.len + @intCast(u64, newlines_seen) * section.newline_style.len);
+        var remaining = try temp_alloc.alloc(u8, raw_program.len + newlines_seen * section.newline_style.len);
         section.clean_program = remaining;
 
         const newline_style = section.newline_style;
@@ -143,7 +143,7 @@ pub const Processor = struct {
             }
         }
 
-        var program_newlines: i64 = 0;
+        var program_newlines: u64 = 0;
 
         while (std.mem.indexOfAny(u8, raw_program, "\r\n")) |end_of_line| {
             var start_of_line: usize = undefined;
@@ -198,7 +198,7 @@ pub const Processor = struct {
 
         var initial_bytes_of_closers = [2]u8{ limp_closer[0], comment_closer[0] };
 
-        var newlines_seen: i64 = 0;
+        var newlines_seen: u64 = 0;
         var remaining = file_contents;
         while (std.mem.indexOf(u8, remaining, limp_header)) |opener_loc| {
             var section = Section{};
@@ -208,7 +208,7 @@ pub const Processor = struct {
             section.limp_header = limp_header;
 
             if (root.option_very_verbose) {
-                const offset = @ptrToInt(remaining.ptr) - @ptrToInt(file_contents.ptr) + opener_loc;
+                const offset = @intFromPtr(remaining.ptr) - @intFromPtr(file_contents.ptr) + opener_loc;
                 std.io.getStdOut().writer().print("{s}:{}: Found LIMP header at offset {}.\n", .{ self.file_path, newlines_seen, offset }) catch {};
             }
 
@@ -230,8 +230,8 @@ pub const Processor = struct {
 
                         newlines_seen += countNewlines(line_count_str_raw);
 
-                        const line_count_str = std.mem.trim(u8, line_count_str_raw, &std.ascii.spaces);
-                        var lines_remaining = std.fmt.parseUnsigned(i64, line_count_str, 0) catch 0; // TODO error message
+                        const line_count_str = std.mem.trim(u8, line_count_str_raw, &std.ascii.whitespace);
+                        var lines_remaining = std.fmt.parseUnsigned(u64, line_count_str, 0) catch 0; // TODO error message
 
                         newlines_seen += lines_remaining;
 
@@ -339,7 +339,7 @@ pub const Processor = struct {
 
         var modified = false;
 
-        for (self.parsed_sections.items) |section, i| {
+        for (self.parsed_sections.items, 0..) |section, i| {
             if (section.limp_header.len == 0) {
                 try self.processed_sections.append(temp_alloc, section);
                 continue;

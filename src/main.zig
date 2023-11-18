@@ -31,7 +31,7 @@ var depfile_path: ?[]const u8 = null;
 var input_paths = std.ArrayList([]const u8).init(global_alloc);
 var extensions = std.StringHashMap(void).init(global_alloc);
 
-const ExitCode = packed struct {
+const ExitCode = packed struct (u8) {
     unknown: bool = false,
     bad_arg: bool = false,
     bad_input: bool = false,
@@ -47,7 +47,7 @@ pub fn main() !void {
     //     if (@errorReturnTrace()) |trace| std.debug.dumpStackTrace(trace.*);
     //     exit_code.unknown = true;
     // };
-    std.process.exit(@bitCast(u8, exit_code));
+    std.process.exit(@bitCast(exit_code));
 }
 
 fn run() !void {
@@ -73,9 +73,13 @@ fn run() !void {
     const stdout = std.io.getStdOut().writer();
 
     if (option_show_version) {
-        try stdout.print("LIMP {s}  Copyright (C) 2011-2022 Benjamin M. Crist\n", .{config.version});
-        try stdout.print("{s}\n", .{lua.c.LUA_COPYRIGHT});
-        try stdout.print("zlib {s}  Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler\n", .{zlib.c.ZLIB_VERSION});
+        try stdout.print("LIMP {s} Copyright (C) 2011-2023 Benjamin M. Crist\n", .{ config.version });
+        try stdout.print("{s}\n", .{ lua.c.LUA_COPYRIGHT });
+        try stdout.print("zlib {s}   Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler\n", .{ zlib.c.ZLIB_VERSION });
+        try stdout.print("zig {s} {s}", .{
+            @import("builtin").zig_version_string,
+            @tagName(@import("builtin").mode),
+        });
     }
 
     if (option_show_help) {
@@ -151,15 +155,15 @@ fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
     var iter = dir.iterate();
     while (try iter.next()) |entry| {
         switch (entry.kind) {
-            std.fs.IterableDir.Entry.Kind.File => {
+            std.fs.IterableDir.Entry.Kind.file => {
                 processFile(entry.name, dir.dir, false);
             },
-            std.fs.IterableDir.Entry.Kind.Directory => {
+            std.fs.IterableDir.Entry.Kind.directory => {
                 if (option_recursive) {
                     processInput(entry.name, dir.dir, false);
                 }
             },
-            std.fs.IterableDir.Entry.Kind.SymLink => {
+            std.fs.IterableDir.Entry.Kind.sym_link => {
                 var symlink_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
                 if (dir.dir.readLink(entry.name, &symlink_buffer)) |new_path| {
                     if (option_recursive) {

@@ -37,7 +37,7 @@ fn utilDeflate(l: L) callconv(.C) c_int {
 
     var level: i8 = 8;
     if (num_params >= 2) {
-        level = @intCast(i8, c.luaL_checkinteger(l, 2));
+        level = @intCast(c.luaL_checkinteger(l, 2));
     }
 
     var encode_length = false;
@@ -73,7 +73,7 @@ fn utilInflate(l: L) callconv(.C) c_int {
 
     var uncompressed_length: usize = undefined;
     if (c.lua_gettop(l) > 1) {
-        uncompressed_length = @intCast(usize, c.luaL_checkinteger(l, 2));
+        uncompressed_length = @intCast(c.luaL_checkinteger(l, 2));
     } else {
         uncompressed_length = zlib.getUncompressedLength(compressed);
         compressed = zlib.stripUncompressedLength(compressed);

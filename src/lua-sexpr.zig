@@ -74,7 +74,7 @@ fn sexprParser(l: L) callconv(.C) c_int {
         unreachable;
     }
 
-    var parser = @ptrCast(*Parser, @alignCast(8, c.lua_newuserdata(l, @sizeOf(Parser))));
+    var parser: *Parser = @ptrCast(@alignCast(c.lua_newuserdata(l, @sizeOf(Parser))));
     c.luaL_setmetatable(l, "class SxParser");
 
     var alloc = allocators.global_gpa.allocator();
@@ -94,14 +94,14 @@ fn sexprParser(l: L) callconv(.C) c_int {
 }
 
 fn parser__gc(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
     parser.reader.deinit();
     allocators.global_gpa.allocator().free(parser.stream.buffer);
     return 0;
 }
 
 fn parser_open(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
     if (parser.reader.open() catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
@@ -114,7 +114,7 @@ fn parser_open(l: L) callconv(.C) c_int {
 }
 
 fn parser_close(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
     if (parser.reader.close() catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
@@ -127,7 +127,7 @@ fn parser_close(l: L) callconv(.C) c_int {
 }
 
 fn parser_done(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
     if (parser.reader.done() catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
@@ -140,7 +140,7 @@ fn parser_done(l: L) callconv(.C) c_int {
 }
 
 fn parser_expression(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
     if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
         var expected: []const u8 = undefined;
         expected.ptr = c.luaL_checklstring(l, 2, &expected.len);
@@ -155,7 +155,7 @@ fn parser_expression(l: L) callconv(.C) c_int {
         }
         return 1;
     } else {
-        if (parser.reader.anyExpression() catch |e| {
+        if (parser.reader.any_expression() catch |e| {
             _ = c.luaL_error(l, @errorName(e).ptr);
             unreachable;
         }) |val| {
@@ -168,7 +168,7 @@ fn parser_expression(l: L) callconv(.C) c_int {
 }
 
 fn parser_string(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
      if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
         var expected: []const u8 = undefined;
         expected.ptr = c.luaL_checklstring(l, 2, &expected.len);
@@ -183,7 +183,7 @@ fn parser_string(l: L) callconv(.C) c_int {
         }
         return 1;
     } else {
-        if (parser.reader.anyString() catch |e| {
+        if (parser.reader.any_string() catch |e| {
             _ = c.luaL_error(l, @errorName(e).ptr);
             unreachable;
         }) |val| {
@@ -196,8 +196,8 @@ fn parser_string(l: L) callconv(.C) c_int {
 }
 
 fn parser_float(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
-    if (parser.reader.anyFloat(c.lua_Number) catch |e| {
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
+    if (parser.reader.any_float(c.lua_Number) catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
     }) |val| {
@@ -209,14 +209,14 @@ fn parser_float(l: L) callconv(.C) c_int {
 }
 
 fn parser_int(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
 
     var radix: u8 = 10;
     if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
-        radix = @intCast(u8, std.math.clamp(c.luaL_checkinteger(l, 2), 0, 36));
+        radix = @intCast(std.math.clamp(c.luaL_checkinteger(l, 2), 0, 36));
     }
 
-    if (parser.reader.anyInt(c.lua_Integer, radix) catch |e| {
+    if (parser.reader.any_int(c.lua_Integer, radix) catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
     }) |val| {
@@ -228,18 +228,18 @@ fn parser_int(l: L) callconv(.C) c_int {
 }
 
 fn parser_unsigned(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
 
     var radix: u8 = 10;
     if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
-        radix = @intCast(u8, std.math.clamp(c.luaL_checkinteger(l, 2), 0, 36));
+        radix = @intCast(std.math.clamp(c.luaL_checkinteger(l, 2), 0, 36));
     }
 
-    if (parser.reader.anyUnsigned(u32, radix) catch |e| {
+    if (parser.reader.any_unsigned(u32, radix) catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
     }) |val| {
-        _ = c.lua_pushinteger(l, @intCast(c.lua_Integer, val));
+        _ = c.lua_pushinteger(l, @intCast(val));
     } else {
         c.lua_pushnil(l);
     }
@@ -247,8 +247,8 @@ fn parser_unsigned(l: L) callconv(.C) c_int {
 }
 
 fn parser_ignore_remaining_expression(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
-    parser.reader.ignoreRemainingExpression() catch |e| {
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
+    parser.reader.ignore_remaining_expression() catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
     };
@@ -256,12 +256,12 @@ fn parser_ignore_remaining_expression(l: L) callconv(.C) c_int {
 }
 
 fn parser_print_parse_error_context(l: L) callconv(.C) c_int {
-    var parser = @ptrCast(*Parser, @alignCast(8, c.luaL_checkudata(l, 1, "class SxParser")));
-    var ctx = parser.reader.getNextTokenContext() catch |e| {
+    var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
+    var ctx = parser.reader.token_context() catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
     };
-    ctx.printForString(parser.stream.buffer, std.io.getStdOut().writer(), 150) catch |e| {
+    ctx.print_for_string(parser.stream.buffer, std.io.getStdOut().writer(), 150) catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
     };

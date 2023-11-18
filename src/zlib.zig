@@ -7,12 +7,9 @@ pub const c = @cImport({
 });
 
 fn zlibAlloc(@"opaque": ?*anyopaque, items: c_uint, size: c_uint) callconv(.C) ?*anyopaque {
-    var temp_alloc = @ptrCast(*allocators.TempAllocator, @alignCast(8, @"opaque"));
+    var temp_alloc: *allocators.TempAllocator = @ptrCast(@alignCast(@"opaque"));
     var alloc = temp_alloc.allocator();
-    var buf = alloc.rawAlloc(items * size, 16, 16, 0) catch {
-        return null;
-    };
-    return buf.ptr;
+    return alloc.rawAlloc(items * size, 4, 0);
 }
 
 fn zlibFree(_: ?*anyopaque, _: ?*anyopaque) callconv(.C) void {
@@ -62,11 +59,11 @@ pub fn deflate(temp_alloc: *allocators.TempAllocator, uncompressed: []const u8, 
     var status: c_int = c.Z_OK;
     while (status == c.Z_OK) {
         if (stream.avail_out == 0) {
-            stream.avail_out = if (out.len > max_bytes) max_bytes else @intCast(c_uint, out.len);
+            stream.avail_out = if (out.len > max_bytes) max_bytes else @intCast(out.len);
             out = out[stream.avail_out..];
         }
         if (stream.avail_in == 0) {
-            stream.avail_in = if (in.len > max_bytes) max_bytes else @intCast(c_uint, in.len);
+            stream.avail_in = if (in.len > max_bytes) max_bytes else @intCast(in.len);
             in = in[stream.avail_in..];
         }
         stream.total_out = 0;
@@ -87,9 +84,7 @@ pub fn deflate(temp_alloc: *allocators.TempAllocator, uncompressed: []const u8, 
     if (encode_length) {
         compressed_size += @sizeOf(u64);
         var size = std.mem.nativeToLittle(u64, uncompressed.len);
-
-        // @Cleanup: is there a clearer/more idiomatic way to do this?
-        @memcpy(result.ptr, @ptrCast([*]align(8) const u8, &size), @sizeOf(u64));
+        @memcpy(result.ptr, std.mem.asBytes(&size));
     }
 
     if (result.len != compressed_size) {
@@ -105,7 +100,7 @@ pub fn getUncompressedLength(compressed: []const u8) usize {
     }
 
     var uncompressed_size: u64 = undefined;
-    @memcpy(@ptrCast([*]align(8) u8, &uncompressed_size), compressed.ptr, @sizeOf(u64));
+    @memcpy(std.mem.asBytes(&uncompressed_size), compressed.ptr);
     return std.mem.littleToNative(u64, uncompressed_size);
 }
 
@@ -153,11 +148,11 @@ pub fn inflate(temp_alloc: *allocators.TempAllocator, compressed: []const u8, un
     var status = c.Z_OK;
     while (status == c.Z_OK) {
         if (stream.avail_out == 0) {
-            stream.avail_out = if (out.len > max_bytes) max_bytes else @intCast(c_uint, out.len);
+            stream.avail_out = if (out.len > max_bytes) max_bytes else @intCast(out.len);
             out = out[stream.avail_out..];
         }
         if (stream.avail_in == 0) {
-            stream.avail_in = if (in.len > max_bytes) max_bytes else @intCast(c_uint, in.len);
+            stream.avail_in = if (in.len > max_bytes) max_bytes else @intCast(in.len);
             in = in[stream.avail_in..];
         }
         stream.total_out = 0;

@@ -19,7 +19,7 @@ pub fn registerStdLib(l: L) callconv(.C) c_int {
 
 pub fn getTempAlloc(l: L) *allocators.TempAllocator {
     // Note: this relies on LUA_EXTRASPACE being defined correctly, both in the @cImport and when the lua source files are compiled
-    return @ptrCast(*allocators.TempAllocator, @alignCast(8, c.lua_getextraspace(l)));
+    return @ptrCast(@alignCast(c.lua_getextraspace(l)));
 }
 
 pub const State = struct {
@@ -49,7 +49,7 @@ pub const State = struct {
     }
 
     pub fn callAll(self: State, funcs: []const c.lua_CFunction) !void {
-        if (funcs.len > std.math.maxInt(c_int) or 0 == c.lua_checkstack(self.l, @intCast(c_int, funcs.len))) {
+        if (funcs.len > std.math.maxInt(c_int) or 0 == c.lua_checkstack(self.l, @intCast(funcs.len))) {
             return error.TooManyFunctions;
         }
         self.pushCFunction(traceUnsafe);
@@ -60,7 +60,7 @@ pub const State = struct {
         }
 
         defer self.removeIndex(trace_index);
-        switch (c.lua_pcallk(self.l, @intCast(c_int, funcs.len), 0, trace_index, 0, null)) {
+        switch (c.lua_pcallk(self.l, @intCast(funcs.len), 0, trace_index, 0, null)) {
             c.LUA_OK => {},
             c.LUA_ERRMEM => return error.OutOfMemory,
             else => return error.LuaRuntimeError,
@@ -131,7 +131,8 @@ pub const State = struct {
         try self.call(2, 1);
     }
     fn pushTableStringUnsafe(l: L) callconv(.C) c_int {
-        const params = @ptrCast(*const TableStringParams, @alignCast(8, c.lua_topointer(l, 2))).*;
+        const params_ptr: *const TableStringParams = @ptrCast(@alignCast(c.lua_topointer(l, 2)));
+        const params = params_ptr.*;
         _ = c.lua_pushlstring(l, params.slot.ptr, params.slot.len);
         _ = c.lua_gettable(l, 1);
         return 1;
@@ -156,7 +157,8 @@ pub const State = struct {
         try self.call(2, 0);
     }
     fn setTableStringStringUnsafe(l: L) callconv(.C) c_int {
-        const params = @ptrCast(*const TableStringParams, @alignCast(8, c.lua_topointer(l, 2))).*;
+        const params_ptr: *const TableStringParams = @ptrCast(@alignCast(c.lua_topointer(l, 2)));
+        const params = params_ptr.*;
         _ = c.lua_pushlstring(l, params.slot.ptr, params.slot.len);
         _ = c.lua_pushlstring(l, params.value.ptr, params.value.len);
         c.lua_settable(l, 1);

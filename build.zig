@@ -3,32 +3,32 @@ const config = @import("build_config.zig");
 const @"Zig-TempAllocator" = @import("Zig-TempAllocator");
 const TempAllocator = @"Zig-TempAllocator".TempAllocator;
 
-pub fn build(b: *std.build.Build) void {
+pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const mode = b.standardOptimizeOptions();
+    const mode = b.standardOptimizeOption(.{});
     const exe_name = if (mode == .Debug) "limp-debug" else "limp";
+    const version_str = b.option([]const u8, "version", "override default version number") orelse "unreleased";
+    const version: std.SemanticVersion = std.SemanticVersion.parse(version_str) catch .{ .major = 0, .minor = 0, .patch = 0 };
 
-    const config_step = config.ConfigStep.create(b) catch unreachable;
-    const config_pkg = std.build.Pkg {
-        .name = "config",
-        .source = .{ .generated = &config_step.generated_file },
-    };
-    _ = config_pkg;
+    const options = b.addOptions();
+    options.addOption([]const u8, "version", version_str);
 
-    const exe = b.addExecutable(exe_name, .{
+    const exe = b.addExecutable(.{
         .name = exe_name,
         .root_source_file = .{ .path = "src/main.zig" },
-      //  .version: ?std.SemanticVersion = null,
+        .version = version,
         .target = target,
         .optimize = mode,
         .link_libc = true,
         .single_threaded = true,
     });
-    //exe.addPackage(config_pkg);
-    exe.addModule("TempAllocator", b.dependency("Zig-TempAllocator").module("TempAllocator"));
-    exe.addModule("sx", b.dependency("Zig-SX").module("sx"));
-    exe.addIncludePath("lua/");
-    exe.addIncludePath("zlib/");
+    exe.addOptions("config", options);
+    exe.addModule("TempAllocator", b.dependency("Zig-TempAllocator", .{}).module("TempAllocator"));
+    exe.addModule("sx", b.dependency("Zig-SX", .{}).module("sx"));
+
+    exe.addIncludePath(.{ .path = "lua/" });
+    exe.addIncludePath(.{ .path = "zlib/" });
+
     var extraSpace = std.fmt.comptimePrint("{}", .{@sizeOf(TempAllocator)});
     exe.defineCMacro("LUA_EXTRASPACE", extraSpace);
     exe.defineCMacro("Z_SOLO", "");
@@ -59,12 +59,18 @@ pub fn build(b: *std.build.Build) void {
         "-Wextra",
     };
 
-    for (lua_c_files) |c_file| {
-        exe.addCSourceFile("lua/" ++ c_file, &c_flags);
+    inline for (lua_c_files) |c_file| {
+        exe.addCSourceFile(.{
+            .file = .{ .path = "lua/" ++ c_file },
+            .flags = &c_flags,
+        });
     }
 
-    for (zlib_c_files) |c_file| {
-        exe.addCSourceFile("zlib/" ++ c_file, &c_flags);
+    inline for (zlib_c_files) |c_file| {
+        exe.addCSourceFile(.{
+            .file = .{ .path = "zlib/" ++ c_file },
+            .flags = &c_flags,
+        });
     }
 
     b.installArtifact(exe);

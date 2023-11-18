@@ -82,14 +82,14 @@ fn fsComposePath(l: L) callconv(.C) c_int {
 
     const count = c.lua_gettop(l);
     std.debug.assert(count >= 0);
-    var paths = alloc.alloc([]const u8, @intCast(usize, count)) catch |err| {
+    var paths = alloc.alloc([]const u8, @intCast(count)) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
     var i: c_int = 1;
     while (i <= count) : (i += 1) {
-        const p = @intCast(usize, i - 1);
+        const p: usize = @intCast(i - 1);
         paths[p].ptr = c.luaL_checklstring(l, i, &paths[p].len);
     }
 
@@ -109,14 +109,14 @@ fn fsComposePathSlash(l: L) callconv(.C) c_int {
 
     const count = c.lua_gettop(l);
     std.debug.assert(count >= 0);
-    var paths = alloc.alloc([]const u8, @intCast(usize, count)) catch |err| {
+    var paths = alloc.alloc([]const u8, @intCast(count)) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
     var i: c_int = 1;
     while (i <= count) : (i += 1) {
-        const p = @intCast(usize, i - 1);
+        const p: usize = @intCast(i - 1);
         paths[p].ptr = c.luaL_checklstring(l, i, &paths[p].len);
     }
 
@@ -308,7 +308,7 @@ fn fsStat(l: L) callconv(.C) c_int {
         .inode = 0,
         .size = 0,
         .mode = 0,
-        .kind = std.fs.File.Kind.Unknown,
+        .kind = std.fs.File.Kind.unknown,
         .atime = 0,
         .mtime = 0,
         .ctime = 0,
@@ -342,42 +342,42 @@ fn fsStat(l: L) callconv(.C) c_int {
     if (stat.size > std.math.maxInt(c.lua_Integer)) {
         c.lua_pushinteger(l, std.math.maxInt(c.lua_Integer));
     } else {
-        c.lua_pushinteger(l, @intCast(c.lua_Integer, stat.size));
+        c.lua_pushinteger(l, @intCast(stat.size));
     }
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "kind");
     var kind = switch (stat.kind) {
-        .BlockDevice => "blockdevice",
-        .CharacterDevice => "chardevice",
-        .Directory => "dir",
-        .NamedPipe => "pipe",
-        .SymLink => "symlink",
-        .File => "file",
-        .UnixDomainSocket => "socket",
-        .Whiteout => "whiteout",
-        .Door => "door",
-        .EventPort => "eventport",
-        .Unknown => "unknown",
+        .block_device => "block_device",
+        .character_device => "char_device",
+        .directory => "dir",
+        .named_pipe => "pipe",
+        .sym_link => "symlink",
+        .file => "file",
+        .unix_domain_socket => "socket",
+        .whiteout => "whiteout",
+        .door => "door",
+        .event_port => "event_port",
+        .unknown => "unknown",
     };
     if (!exists) kind = "";
     _ = c.lua_pushlstring(l, kind.ptr, kind.len);
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "mode");
-    c.lua_pushinteger(l, @intCast(c.lua_Integer, stat.mode));
+    c.lua_pushinteger(l, @intCast(stat.mode));
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "atime");
-    c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.atime, 1000000)));
+    c.lua_pushinteger(l, @intCast(@divFloor(stat.atime, 1000000)));
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "mtime");
-    c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.mtime, 1000000)));
+    c.lua_pushinteger(l, @intCast(@divFloor(stat.mtime, 1000000)));
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "ctime");
-    c.lua_pushinteger(l, @intCast(c.lua_Integer, @divFloor(stat.ctime, 1000000)));
+    c.lua_pushinteger(l, @intCast(@divFloor(stat.ctime, 1000000)));
     c.lua_rawset(l, 1);
     return 1;
 }
@@ -391,7 +391,7 @@ fn fsGetFileContents(l: L) callconv(.C) c_int {
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
     const max_size_c = c.lua_tointegerx(l, 2, null);
-    const max_size: usize = if (max_size_c <= 0) 5_000_000_000 else @intCast(usize, max_size_c);
+    const max_size: usize = if (max_size_c <= 0) 5_000_000_000 else @intCast(max_size_c);
 
     var result = std.fs.cwd().readFileAlloc(alloc, path, max_size) catch |err| switch (err) {
         error.FileNotFound, error.BadPathName, error.InvalidUtf8, error.NameTooLong => {

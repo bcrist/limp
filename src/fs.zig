@@ -7,7 +7,7 @@ const native_os = builtin.target.os.tag;
 
 pub fn replaceExtension(allocator: Allocator, path: []const u8, new_ext: []const u8) ![]u8 {
     const old_ext = std.fs.path.extension(path);
-    const without_ext = path[0..(@ptrToInt(old_ext.ptr) - @ptrToInt(path.ptr))];
+    const without_ext = path[0..(@intFromPtr(old_ext.ptr) - @intFromPtr(path.ptr))];
     var result: []u8 = undefined;
 
     if (new_ext.len == 0) {
@@ -64,7 +64,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
     var have_abs_path = false;
     var first_index: usize = 0;
     var max_size: usize = 0;
-    for (paths) |p, i| {
+    for (paths, 0..) |p, i| {
         const parsed = std.fs.path.windowsParsePath(p);
         if (parsed.is_abs) {
             have_abs_path = true;
@@ -95,7 +95,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
         max_size = result_disk_designator.len;
         var correct_disk_designator = false;
 
-        for (paths) |p, i| {
+        for (paths, 0..) |p, i| {
             const parsed = std.fs.path.windowsParsePath(p);
             if (parsed.kind != WindowsPath.Kind.None) {
                 if (parsed.kind == have_drive_kind) {
@@ -189,7 +189,13 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
         result_index += 1;
     }
 
-    return allocator.shrink(result, result_index);
+    if (allocator.resize(result, result_index)) {
+        return result[0..result_index];
+    } else {
+        const new_result = try allocator.dupe(u8, result[0..result_index]);
+        allocator.free(result);
+        return new_result;
+    }
 }
 
 pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8) ![]u8 {
@@ -204,7 +210,7 @@ pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8
     var first_index: usize = 0;
     var have_abs = false;
     var max_size: usize = 0;
-    for (paths) |p, i| {
+    for (paths, 0..) |p, i| {
         if (std.fs.path.isAbsolutePosix(p)) {
             first_index = i;
             have_abs = true;
@@ -271,8 +277,8 @@ pub inline fn pathRelativeToAncestorPosix(path: []const u8, ancestor: []const u8
 }
 
 fn pathRelativeToAncestorGeneric(path: []const u8, ancestor: []const u8, comptime tokens: []const u8) []const u8 {
-    var path_it = std.mem.tokenize(u8, path, tokens);
-    var ancestor_it = std.mem.tokenize(u8, ancestor, tokens);
+    var path_it = std.mem.tokenizeAny(u8, path, tokens);
+    var ancestor_it = std.mem.tokenizeAny(u8, ancestor, tokens);
 
     if (prefixMatches(&path_it, &ancestor_it)) {
         var start = path_it.next() orelse return ".";
@@ -280,13 +286,13 @@ fn pathRelativeToAncestorGeneric(path: []const u8, ancestor: []const u8, comptim
             start = path_it.next() orelse return ".";
         }
 
-        return path[(@ptrToInt(start.ptr) - @ptrToInt(path.ptr))..];
+        return path[(@intFromPtr(start.ptr) - @intFromPtr(path.ptr))..];
     } else {
         return path;
     }
 }
 
-fn prefixMatches(path_it: *std.mem.TokenIterator(u8), ancestor_it: *std.mem.TokenIterator(u8)) bool {
+fn prefixMatches(path_it: *std.mem.TokenIterator(u8, .any), ancestor_it: *std.mem.TokenIterator(u8, .any)) bool {
     while (true) {
         var ancestor_part = ancestor_it.next() orelse return true;
         while (std.mem.eql(u8, ancestor_part, ".")) {
@@ -348,7 +354,7 @@ pub fn copyTree(source_dir: std.fs.Dir, source_path: []const u8, dest_dir: std.f
 fn copyDir(source_dir: std.fs.IterableDir, dest_dir: std.fs.Dir, options: std.fs.CopyFileOptions) CopyTreeError!void {
     var iter = source_dir.iterate();
     while (try iter.next()) |entry| {
-        if (entry.kind == std.fs.File.Kind.Directory) {
+        if (entry.kind == std.fs.File.Kind.directory) {
             var src = try source_dir.dir.openIterableDir(entry.name, .{ .no_follow = true });
             defer src.close();
 

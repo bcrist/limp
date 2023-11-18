@@ -4,8 +4,8 @@
     .minimum_zig_version = "0.12.0-dev.1591+3fc6a2f11",
     .dependencies = .{
         .@"Zig-TempAllocator" = .{
-            .url = "https://github.com/bcrist/Zig-TempAllocator/archive/17cb60e26e87c281649a7705054c02eebe100a77.tar.gz",
-            .hash = "1220c477b3171338d550b5a9c84dbad062056b6d91516d9acc497be1bcd2d2eef906",
+            .url = "https://github.com/bcrist/Zig-TempAllocator/archive/3404224d801686bf07c11c8cf98ef40843c61e43.tar.gz",
+            .hash = "1220938b6aa45be199493d02068120df0b72efe9e61fd1115d2b9b7f7f3cb6e45057",
         },
         .@"Zig-SX" = .{
             .url = "https://github.com/bcrist/Zig-SX/archive/c1977406a3670f234e736a696d2a017b5511cd12.tar.gz",
