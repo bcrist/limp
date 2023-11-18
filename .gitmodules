@@ -1,6 +1,0 @@
-[submodule "pkg/Zig-SX"]
-	path = pkg/Zig-SX
-	url = https://github.com/bcrist/Zig-SX
-[submodule "pkg/Zig-TempAllocator"]
-	path = pkg/Zig-TempAllocator
-	url = https://github.com/bcrist/Zig-TempAllocator

@@ -1,0 +1,16 @@
+.{
+    .name = "LIMP",
+    .version = "1.1.0",
+    .minimum_zig_version = "0.12.0-dev.1591+3fc6a2f11",
+    .dependencies = .{
+        .@"Zig-TempAllocator" = .{
+            .url = "https://github.com/bcrist/Zig-TempAllocator/archive/17cb60e26e87c281649a7705054c02eebe100a77.tar.gz",
+            .hash = "1220c477b3171338d550b5a9c84dbad062056b6d91516d9acc497be1bcd2d2eef906",
+        },
+        .@"Zig-SX" = .{
+            .url = "https://github.com/bcrist/Zig-SX/archive/c1977406a3670f234e736a696d2a017b5511cd12.tar.gz",
+            .hash = "122018b2164c08ecd5ba63d4db8bdbd41d623af93951c2f3c1cd309a2c3eece48d80",
+        },
+    },
+    .paths = .{""},
+}
