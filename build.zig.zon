@@ -1,6 +1,6 @@
 .{
     .name = "LIMP",
-    .version = "0.2.8",
+    .version = "0.2.9",
     .minimum_zig_version = "0.12.0",
     .paths = .{""},
     .dependencies = .{

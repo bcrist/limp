@@ -31,6 +31,12 @@ var depfile_path: ?[]const u8 = null;
 var input_paths = std.ArrayList([]const u8).init(global_alloc);
 var extensions = std.StringHashMap(void).init(global_alloc);
 var eval_strings = std.ArrayList([]const u8).init(global_alloc);
+var assignments = std.ArrayList(Assignment).init(global_alloc);
+
+pub const Assignment = struct {
+    key: []const u8,
+    value: []const u8,
+};
 
 const ExitCode = packed struct (u8) {
     unknown: bool = false,
@@ -244,7 +250,7 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
         if (std.fs.path.dirname(real_path)) |dir| {
             try std.posix.chdir(dir);
         }
-        switch (try proc.process(eval_strings.items)) {
+        switch (try proc.process(assignments.items, eval_strings.items)) {
             .ignore => {
                 if (option_verbose) {
                     printPathStatus("Ignoring", path, within_dir);
@@ -363,6 +369,23 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
         }
     } else if (std.mem.startsWith(u8, arg, "--depfile=")) {
         depfile_path = try global_alloc.dupe(u8, arg["--depfile=".len..]);
+    } else if (std.mem.eql(u8, arg, "--set")) {
+        if (args.next()) |key| {
+            const dupe_key = try global_alloc.dupe(u8, key);
+            if (args.next()) |value| {
+                const dupe_value = try global_alloc.dupe(u8, value);
+                try assignments.append(.{
+                    .key = dupe_key,
+                    .value = dupe_value,
+                });
+            } else {
+                try std.io.getStdErr().writer().writeAll("Expected value after --set <key>\n");
+                exit_code.bad_arg = true;
+            }
+        } else {
+            try std.io.getStdErr().writer().writeAll("Expected global key after --set\n");
+            exit_code.bad_arg = true;
+        }
     } else if (std.mem.eql(u8, arg, "--eval")) {
         if (args.next()) |str| {
             const dupe_str = try global_alloc.dupe(u8, str);

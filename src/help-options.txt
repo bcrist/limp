@@ -5,7 +5,7 @@ Options:
   -n, --dry-run         Make no changes, but report which files would be
                         changed if run without this option.
 
-  -x, --extensions=EXT  Specifies a comma-separated list of file extensions.
+  -x, --extensions EXT  Specifies a comma-separated list of file extensions.
                         When searching a directory, only files having one of
                         these extensions will be processed.  If not specified,
                         all extensions associated with a language are checked.
@@ -15,8 +15,14 @@ Options:
   -b, --break-on-fail   Stop processing additional inputs after the first
                         failure.
 
-  --depfile=PATH        Outputs included scripts and templates to a `gcc -MMD`
+  --depfile PATH        Outputs included scripts and templates to a `gcc -MMD`
                         style dependency file.
+
+  --set KEY VALUE       Assigns a global string before processing each input
+                        file.
+
+  --eval STRING         Evaluates the provided string before processing each
+                        input file.
 
   --test                Ignores other options, outputs nothing, and exits.
 

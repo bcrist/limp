@@ -294,11 +294,11 @@ pub const Processor = struct {
         }
     }
 
-    pub fn process(self: *Processor, eval_strings: []const []const u8) !ProcessResult {
+    pub fn process(self: *Processor, assignments: []const root.Assignment, eval_strings: []const []const u8) !ProcessResult {
         const l = try lua.State.init();
         defer l.deinit();
 
-        return self.processInner(l, eval_strings) catch |err| switch (err) {
+        return self.processInner(l, assignments, eval_strings) catch |err| switch (err) {
             error.LuaRuntimeError => {
                 const msg = l.getString(1, "(trace not available)");
                 std.io.getStdErr().writer().print("{s}\n", .{msg}) catch {};
@@ -313,7 +313,7 @@ pub const Processor = struct {
         };
     }
 
-    fn processInner(self: *Processor, l: lua.State, eval_strings: []const []const u8) !ProcessResult {
+    fn processInner(self: *Processor, l: lua.State, assignments: []const root.Assignment, eval_strings: []const []const u8) !ProcessResult {
         const initializers = [_]lua.c.lua_CFunction{
             lua.registerStdLib,
             lua.fs.registerFsLib,
@@ -333,6 +333,10 @@ pub const Processor = struct {
         try l.setGlobalString("comment_line_prefix", self.comment_tokens.line_prefix);
 
         try l.execute(limp_core, "@LIMP core");
+
+        for (assignments) |assignment| {
+            try l.setGlobalString(assignment.key, assignment.value);
+        }
 
         for (1.., eval_strings) |num, eval_string| {
             var name_buf: [32]u8 = undefined;
