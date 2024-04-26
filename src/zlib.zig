@@ -1,91 +1,42 @@
 const std = @import("std");
 const allocators = @import("allocators.zig");
-pub const c = @cImport({
-    @cDefine("Z_SOLO", {});
-    @cDefine("ZLIB_CONST", {});
-    @cInclude("zlib.h");
-});
-
-fn zlibAlloc(@"opaque": ?*anyopaque, items: c_uint, size: c_uint) callconv(.C) ?*anyopaque {
-    var temp_alloc: *allocators.TempAllocator = @ptrCast(@alignCast(@"opaque"));
-    var alloc = temp_alloc.allocator();
-    return alloc.rawAlloc(items * size, 4, 0);
-}
-
-fn zlibFree(_: ?*anyopaque, _: ?*anyopaque) callconv(.C) void {
-    // all memory will be freed when the TempAllocator is reset at the end.
-}
 
 fn deflateBound(uncompressed_size: usize, encode_length: bool) usize {
-    var compressed_size = uncompressed_size + ((uncompressed_size + 7) >> 3) + ((uncompressed_size + 63) >> 6) + 11;
+    // TODO: is this still valid with the std.compress.flate implementation?  Probably not; let's use something more conservative...
+    //var compressed_size = uncompressed_size + ((uncompressed_size + 7) >> 3) + ((uncompressed_size + 63) >> 6) + 11;
+    var compressed_size = uncompressed_size + @divFloor(uncompressed_size, 4) + 256;
     if (encode_length) {
         compressed_size += @sizeOf(u64);
     }
     return compressed_size;
 }
 
-pub fn deflate(temp_alloc: *allocators.TempAllocator, uncompressed: []const u8, encode_length: bool, level: i8) ![]u8 {
+pub fn deflate(temp_alloc: *allocators.Temp_Allocator, uncompressed: []const u8, encode_length: bool, level: i8) ![]u8 {
     var allocator = temp_alloc.allocator();
     var result = try allocator.alloc(u8, deflateBound(uncompressed.len, encode_length));
     errdefer allocator.free(result);
 
-    var in = uncompressed;
     var out = result;
-
     if (encode_length) {
         out = out[@sizeOf(u64)..];
     }
 
-    var stream: c.z_stream = undefined;
-    stream.zalloc = zlibAlloc;
-    stream.zfree = zlibFree;
-    stream.@"opaque" = temp_alloc;
+    var uncompressed_stream = std.io.fixedBufferStream(uncompressed);
+    var compressed_stream = std.io.fixedBufferStream(out);
 
-    switch (c.deflateInit(&stream, level)) {
-        c.Z_MEM_ERROR => return error.OutOfMemory,
-        c.Z_STREAM_ERROR => return error.InvalidLevel,
-        c.Z_OK => {},
-        else => return error.Unexpected,
-    }
+    try std.compress.flate.compress(uncompressed_stream.reader(), compressed_stream.writer(), .{
+        .level = @enumFromInt(level),
+    });
 
-    stream.next_out = out.ptr;
-    stream.avail_out = 0;
-    stream.next_in = in.ptr;
-    stream.avail_in = 0;
-
-    const max_bytes: c_uint = std.math.maxInt(c_uint);
-    var compressed_size: usize = 0;
-
-    var status: c_int = c.Z_OK;
-    while (status == c.Z_OK) {
-        if (stream.avail_out == 0) {
-            stream.avail_out = if (out.len > max_bytes) max_bytes else @intCast(out.len);
-            out = out[stream.avail_out..];
-        }
-        if (stream.avail_in == 0) {
-            stream.avail_in = if (in.len > max_bytes) max_bytes else @intCast(in.len);
-            in = in[stream.avail_in..];
-        }
-        stream.total_out = 0;
-        status = c.deflate(&stream, if (in.len > 0) c.Z_NO_FLUSH else c.Z_FINISH);
-        compressed_size += stream.total_out;
-    }
-
-    if (status != c.Z_STREAM_END) {
-        _ = c.deflateEnd(&stream);
-        return error.Unexpected;
-    }
-
-    status = c.deflateEnd(&stream);
-    if (status != c.Z_OK) {
-        return error.Unexpected;
-    }
+    var compressed_size = compressed_stream.getWritten().len;
 
     if (encode_length) {
         compressed_size += @sizeOf(u64);
         var size = std.mem.nativeToLittle(u64, uncompressed.len);
         @memcpy(result.ptr, std.mem.asBytes(&size));
     }
+
+    _ = allocator.resize(result, compressed_size);
 
     if (result.len != compressed_size) {
         result.len = compressed_size;
@@ -112,77 +63,16 @@ pub fn stripUncompressedLength(compressed: []const u8) []const u8 {
     }
 }
 
-pub fn inflate(temp_alloc: *allocators.TempAllocator, compressed: []const u8, uncompressed_length: usize) ![]u8 {
-    var tmp = [1]u8{0}; // for detection of incomplete stream when uncompressed.len == 0
+pub fn inflate(temp_alloc: *allocators.Temp_Allocator, compressed: []const u8, uncompressed_length: usize) ![]u8 {
+    const uncompressed = try temp_alloc.allocator().alloc(u8, @max(1, uncompressed_length));
+    errdefer temp_alloc.allocator().free(uncompressed);
 
-    var uncompressed: []u8 = undefined;
+    var compressed_stream = std.io.fixedBufferStream(compressed);
+    var uncompressed_stream = std.io.fixedBufferStream(uncompressed);
 
-    if (uncompressed_length == 0) {
-        uncompressed = &tmp;
-    } else {
-        uncompressed = try temp_alloc.allocator().alloc(u8, uncompressed_length);
-    }
+    try std.compress.flate.decompress(compressed_stream.reader(), uncompressed_stream.writer());
 
-    var in = compressed;
-    var out = uncompressed;
-
-    var stream: c.z_stream = undefined;
-    stream.zalloc = zlibAlloc;
-    stream.zfree = zlibFree;
-    stream.@"opaque" = temp_alloc;
-    stream.next_in = in.ptr;
-    stream.avail_in = 0;
-
-    switch (c.inflateInit(&stream)) {
-        c.Z_MEM_ERROR => return error.OutOfMemory,
-        c.Z_OK => {},
-        else => return error.Unexpected,
-    }
-
-    stream.next_out = out.ptr;
-    stream.avail_out = 0;
-
-    const max_bytes: c_uint = std.math.maxInt(c_uint);
-    var actual_uncompressed_size: usize = 0;
-
-    var status = c.Z_OK;
-    while (status == c.Z_OK) {
-        if (stream.avail_out == 0) {
-            stream.avail_out = if (out.len > max_bytes) max_bytes else @intCast(out.len);
-            out = out[stream.avail_out..];
-        }
-        if (stream.avail_in == 0) {
-            stream.avail_in = if (in.len > max_bytes) max_bytes else @intCast(in.len);
-            in = in[stream.avail_in..];
-        }
-        stream.total_out = 0;
-        status = c.inflate(&stream, c.Z_NO_FLUSH);
-        actual_uncompressed_size += stream.total_out;
-    }
-
-    if (uncompressed.len == 0) {
-        if (actual_uncompressed_size > 0 and status == c.Z_BUF_ERROR) {
-            _ = c.inflateEnd(&stream);
-            return error.DataCorrupted;
-        }
-        actual_uncompressed_size = 0;
-    }
-
-    if (status == c.Z_NEED_DICT or status == c.Z_BUF_ERROR and (out.len + stream.avail_out > 0)) {
-        _ = c.inflateEnd(&stream);
-        return error.DataCorrupted;
-    } else if (status == c.Z_MEM_ERROR) {
-        _ = c.inflateEnd(&stream);
-        return error.OutOfMemory;
-    } else if (status != c.Z_STREAM_END) {
-        _ = c.inflateEnd(&stream);
-        return error.Unexpected;
-    }
-
-    status = c.inflateEnd(&stream);
-    if (status != c.Z_OK) {
-        return error.Unexpected;
-    }
-
-    return uncompressed[0..actual_uncompressed_size];
+    const result = uncompressed_stream.getWritten();
+    _ = temp_alloc.allocator().resize(uncompressed, result.len);
+    return result;
 }

@@ -61,14 +61,15 @@ fn openSx(l: L) callconv(.C) c_int {
 
 const Parser = struct {
     stream: std.io.FixedBufferStream([]const u8),
-    reader: sx.Reader(std.io.FixedBufferStream([]const u8).Reader),
+    stream_reader: std.io.FixedBufferStream([]const u8).Reader,
+    reader: sx.Reader,
 };
 
 fn sexprParser(l: L) callconv(.C) c_int {
     var source: []const u8 = undefined;
     source.ptr = c.luaL_checklstring(l, 1, &source.len);
 
-    var num_params = c.lua_gettop(l);
+    const num_params = c.lua_gettop(l);
     if (num_params > 1) {
         _ = c.luaL_error(l, "Expected 1 parameter (source s-expression text)");
         unreachable;
@@ -79,16 +80,18 @@ fn sexprParser(l: L) callconv(.C) c_int {
 
     var alloc = allocators.global_gpa.allocator();
 
-    var ownedSource: []const u8 = alloc.dupe(u8, source) catch |e| {
+    const ownedSource: []const u8 = alloc.dupe(u8, source) catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
     };
 
     parser.* = .{
         .stream = std.io.fixedBufferStream(ownedSource),
+        .stream_reader = undefined,
         .reader = undefined,
     };
-    parser.reader = sx.reader(alloc, parser.stream.reader());
+    parser.stream_reader = parser.stream.reader();
+    parser.reader = sx.reader(alloc, parser.stream_reader.any());
 
     return 1;
 }

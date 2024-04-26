@@ -30,6 +30,7 @@ var option_break_on_fail = false;
 var depfile_path: ?[]const u8 = null;
 var input_paths = std.ArrayList([]const u8).init(global_alloc);
 var extensions = std.StringHashMap(void).init(global_alloc);
+var eval_strings = std.ArrayList([]const u8).init(global_alloc);
 
 const ExitCode = packed struct (u8) {
     unknown: bool = false,
@@ -40,7 +41,7 @@ const ExitCode = packed struct (u8) {
 var exit_code = ExitCode{};
 
 pub fn main() !void {
-    allocators.temp_arena = try allocators.TempAllocator.init(1024 * 1024 * 1024);
+    allocators.temp_arena = try allocators.Temp_Allocator.init(1024 * 1024 * 1024);
 
     try run();
     // run() catch {
@@ -64,7 +65,7 @@ fn run() !void {
         return;
     }
 
-    if (!option_show_help and !option_show_version and input_paths.items.len == 0) {
+    if (!option_show_help and !option_show_version and input_paths.items.len == 0 and eval_strings.items.len == 0) {
         option_show_help = true;
         option_show_version = true;
         exit_code.bad_arg = true;
@@ -73,9 +74,8 @@ fn run() !void {
     const stdout = std.io.getStdOut().writer();
 
     if (option_show_version) {
-        try stdout.print("LIMP {s} Copyright (C) 2011-2023 Benjamin M. Crist\n", .{ config.version });
+        try stdout.print("LIMP {s} Copyright (C) 2011-2024 Benjamin M. Crist\n", .{ config.version });
         try stdout.print("{s}\n", .{ lua.c.LUA_COPYRIGHT });
-        try stdout.print("zlib {s}   Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler\n", .{ zlib.c.ZLIB_VERSION });
         try stdout.print("zig {s} {s}", .{
             @import("builtin").zig_version_string,
             @tagName(@import("builtin").mode),
@@ -136,7 +136,7 @@ fn processDir(path: []const u8, within_dir: std.fs.Dir) bool {
 }
 
 fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
-    var dir = within_dir.openIterableDir(path, .{}) catch |err| switch (err) {
+    var dir = within_dir.openDir(path, .{ .iterate = true }) catch |err| switch (err) {
         error.NotDir => return false,
         error.FileNotFound => {
             printPathError("Directory or file not found", path, within_dir);
@@ -155,24 +155,24 @@ fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
     var iter = dir.iterate();
     while (try iter.next()) |entry| {
         switch (entry.kind) {
-            std.fs.IterableDir.Entry.Kind.file => {
-                processFile(entry.name, dir.dir, false);
+            .file => {
+                processFile(entry.name, dir, false);
             },
-            std.fs.IterableDir.Entry.Kind.directory => {
+            .directory => {
                 if (option_recursive) {
-                    processInput(entry.name, dir.dir, false);
+                    processInput(entry.name, dir, false);
                 }
             },
-            std.fs.IterableDir.Entry.Kind.sym_link => {
+            .sym_link => {
                 var symlink_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-                if (dir.dir.readLink(entry.name, &symlink_buffer)) |new_path| {
+                if (dir.readLink(entry.name, &symlink_buffer)) |new_path| {
                     if (option_recursive) {
-                        processInput(new_path, dir.dir, false);
+                        processInput(new_path, dir, false);
                     } else {
-                        processFile(new_path, dir.dir, false);
+                        processFile(new_path, dir, false);
                     }
                 } else |err| {
-                    printUnexpectedPathError("reading link", entry.name, dir.dir, err);
+                    printUnexpectedPathError("reading link", entry.name, dir, err);
                 }
             },
             else => {},
@@ -206,7 +206,7 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
         return;
     }
 
-    allocators.temp_arena.reset();
+    allocators.temp_arena.reset(.{});
 
     var old_file_contents = within_dir.readFileAlloc(temp_alloc, path, 1 << 30) catch |err| {
         switch (err) {
@@ -242,9 +242,9 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
 
     if (proc.isProcessable()) {
         if (std.fs.path.dirname(real_path)) |dir| {
-            try std.os.chdir(dir);
+            try std.posix.chdir(dir);
         }
-        switch (try proc.process()) {
+        switch (try proc.process(eval_strings.items)) {
             .ignore => {
                 if (option_verbose) {
                     printPathStatus("Ignoring", path, within_dir);
@@ -317,7 +317,7 @@ fn processArg(arg: []const u8, args: *std.process.ArgIterator) !void {
         }
     }
 
-    var path = try global_alloc.dupe(u8, arg);
+    const path = try global_alloc.dupe(u8, arg);
     try input_paths.append(path);
 }
 
@@ -363,6 +363,14 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
         }
     } else if (std.mem.startsWith(u8, arg, "--depfile=")) {
         depfile_path = try global_alloc.dupe(u8, arg["--depfile=".len..]);
+    } else if (std.mem.eql(u8, arg, "--eval")) {
+        if (args.next()) |str| {
+            const dupe_str = try global_alloc.dupe(u8, str);
+            try eval_strings.append(dupe_str);
+        } else {
+            try std.io.getStdErr().writer().writeAll("Expected string to evaluate after --eval\n");
+            exit_code.bad_arg = true;
+        }
     } else {
         try std.io.getStdErr().writer().print("Unrecognized option: {s}\n", .{arg});
         exit_code.bad_arg = true;
@@ -393,7 +401,7 @@ fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
             }
         },
         else => {
-            var option = [_]u8{c};
+            const option = [_]u8{c};
             try std.io.getStdErr().writer().print("Unrecognized option: -{s}\n", .{option});
             exit_code.bad_arg = true;
         },
@@ -403,7 +411,7 @@ fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
 fn processExtensionList(list: []const u8) !void {
     var it = std.mem.split(u8, list, ",");
     while (it.next()) |raw_ext| {
-        var ext = try if (raw_ext.len <= 128) std.ascii.allocLowerString(global_alloc, raw_ext) else global_alloc.dupe(u8, raw_ext);
+        const ext = try if (raw_ext.len <= 128) std.ascii.allocLowerString(global_alloc, raw_ext) else global_alloc.dupe(u8, raw_ext);
         try extensions.put(ext, {});
     }
 }

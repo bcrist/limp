@@ -24,12 +24,12 @@ fn openUtil(l: L) callconv(.C) c_int {
 
 fn utilDeflate(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset();
+    defer temp.reset(.{});
 
     var uncompressed: []const u8 = undefined;
     uncompressed.ptr = c.luaL_checklstring(l, 1, &uncompressed.len);
 
-    var num_params = c.lua_gettop(l);
+    const num_params = c.lua_gettop(l);
     if (num_params > 3) {
         _ = c.luaL_error(l, "Expected 1 to 3 parameters (data, level, encode_length)");
         unreachable;
@@ -49,14 +49,8 @@ fn utilDeflate(l: L) callconv(.C) c_int {
         encode_length = c.lua_toboolean(l, 3) != 0;
     }
 
-    var compressed = zlib.deflate(temp, uncompressed, encode_length, level) catch |err| {
-        var error_name: [:0]const u8 = undefined;
-        switch (err) {
-            error.OutOfMemory => error_name = "Out of memory",
-            error.InvalidLevel => error_name = "Invalid compression level",
-            error.Unexpected => error_name = "Unexpected zlib error",
-        }
-        _ = c.luaL_error(l, error_name.ptr);
+    const compressed = zlib.deflate(temp, uncompressed, encode_length, level) catch |err| {
+        _ = c.luaL_error(l, @errorName(err).ptr);
         unreachable;
     };
 
@@ -66,7 +60,7 @@ fn utilDeflate(l: L) callconv(.C) c_int {
 
 fn utilInflate(l: L) callconv(.C) c_int {
     var temp = lua.getTempAlloc(l);
-    defer temp.reset();
+    defer temp.reset(.{});
 
     var compressed: []const u8 = undefined;
     compressed.ptr = c.luaL_checklstring(l, 1, &compressed.len);
@@ -79,14 +73,8 @@ fn utilInflate(l: L) callconv(.C) c_int {
         compressed = zlib.stripUncompressedLength(compressed);
     }
 
-    var uncompressed = zlib.inflate(temp, compressed, uncompressed_length) catch |err| {
-        var error_name: [:0]const u8 = undefined;
-        switch (err) {
-            error.OutOfMemory => error_name = "Out of memory",
-            error.DataCorrupted => error_name = "Data corrupted or not deflated",
-            error.Unexpected => error_name = "Unexpected zlib error",
-        }
-        _ = c.luaL_error(l, error_name.ptr);
+    const uncompressed = zlib.inflate(temp, compressed, uncompressed_length) catch |err| {
+        _ = c.luaL_error(l, @errorName(err).ptr);
         unreachable;
     };
 

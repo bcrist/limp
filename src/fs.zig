@@ -11,17 +11,16 @@ pub fn replaceExtension(allocator: Allocator, path: []const u8, new_ext: []const
     var result: []u8 = undefined;
 
     if (new_ext.len == 0) {
-        result = try allocator.alloc(u8, without_ext.len + new_ext.len);
-        std.mem.copy(u8, result, without_ext);
+        result = try allocator.dupe(u8, without_ext);
     } else if (new_ext[0] == '.') {
         result = try allocator.alloc(u8, without_ext.len + new_ext.len);
-        std.mem.copy(u8, result, without_ext);
-        std.mem.copy(u8, result[without_ext.len..], new_ext);
+        @memcpy(result.ptr, without_ext);
+        @memcpy(result[without_ext.len..], new_ext);
     } else {
         result = try allocator.alloc(u8, without_ext.len + new_ext.len + 1);
-        std.mem.copy(u8, result, without_ext);
+        @memcpy(result.ptr, without_ext);
         result[without_ext.len] = '.';
-        std.mem.copy(u8, result[without_ext.len + 1 ..], new_ext);
+        @memcpy(result[without_ext.len + 1 ..], new_ext);
     }
 
     return result;
@@ -31,7 +30,7 @@ pub fn toAbsolute(allocator: Allocator, path: []const u8) ![]u8 {
     if (std.fs.path.isAbsolute(path)) {
         return composePath(allocator, @as(*const [1][]const u8, &path), 0);
     } else {
-        var cwd = try std.process.getCwdAlloc(allocator);
+        const cwd = try std.process.getCwdAlloc(allocator);
         defer allocator.free(cwd);
         var parts = [_][]const u8{ cwd, path };
         return composePath(allocator, &parts, 0);
@@ -125,7 +124,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
     if (have_abs_path) {
         switch (have_drive_kind) {
             WindowsPath.Kind.Drive => {
-                std.mem.copy(u8, result, result_disk_designator);
+                @memcpy(result.ptr, result_disk_designator);
                 result_index += result_disk_designator.len;
             },
             WindowsPath.Kind.NetworkShare => {
@@ -137,11 +136,11 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
                 result_index += 1;
                 result[result_index] = '\\';
                 result_index += 1;
-                std.mem.copy(u8, result[result_index..], server_name);
+                @memcpy(result[result_index..].ptr, server_name);
                 result_index += server_name.len;
                 result[result_index] = '\\';
                 result_index += 1;
-                std.mem.copy(u8, result[result_index..], other_name);
+                @memcpy(result[result_index..].ptr, other_name);
                 result_index += other_name.len;
 
                 result_disk_designator = result[0..result_index];
@@ -175,7 +174,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
                     result[result_index] = separator;
                     result_index += 1;
                 }
-                std.mem.copy(u8, result[result_index..], component);
+                @memcpy(result[result_index..].ptr, component);
                 result_index += component.len;
             }
         }
@@ -235,7 +234,7 @@ pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8
                     result[result_index] = separator;
                     result_index += 1;
                 }
-                std.mem.copy(u8, result[result_index..], component);
+                @memcpy(result[result_index..].ptr, component);
                 result_index += component.len;
             }
         }
@@ -333,13 +332,13 @@ fn compareDiskDesignators(kind: WindowsPath.Kind, p1: []const u8, p2: []const u8
     }
 }
 
-const CopyTreeError = error {SystemResources} || std.os.CopyFileRangeError || std.os.SendFileError || std.os.RenameError || std.os.OpenError;
+const CopyTreeError = std.fs.Dir.CopyFileError || std.fs.Dir.OpenError;
 
-pub fn copyTree(source_dir: std.fs.Dir, source_path: []const u8, dest_dir: std.fs.Dir, dest_path: []const u8, options: std.fs.CopyFileOptions) CopyTreeError!void {
+pub fn copyTree(source_dir: std.fs.Dir, source_path: []const u8, dest_dir: std.fs.Dir, dest_path: []const u8, options: std.fs.Dir.CopyFileOptions) CopyTreeError!void {
     // TODO figure out how to handle symlinks better
     source_dir.copyFile(source_path, dest_dir, dest_path, options) catch |err| switch (err) {
         error.IsDir => {
-            var src = try source_dir.openIterableDir(source_path, .{ .no_follow = true });
+            var src = try source_dir.openDir(source_path, .{ .no_follow = true, .iterate = true });
             defer src.close();
 
             var dest = try dest_dir.makeOpenPath(dest_path, .{ .no_follow = true });
@@ -351,11 +350,11 @@ pub fn copyTree(source_dir: std.fs.Dir, source_path: []const u8, dest_dir: std.f
     };
 }
 
-fn copyDir(source_dir: std.fs.IterableDir, dest_dir: std.fs.Dir, options: std.fs.CopyFileOptions) CopyTreeError!void {
+fn copyDir(source_dir: std.fs.Dir, dest_dir: std.fs.Dir, options: std.fs.Dir.CopyFileOptions) CopyTreeError!void {
     var iter = source_dir.iterate();
     while (try iter.next()) |entry| {
         if (entry.kind == std.fs.File.Kind.directory) {
-            var src = try source_dir.dir.openIterableDir(entry.name, .{ .no_follow = true });
+            var src = try source_dir.openDir(entry.name, .{ .no_follow = true, .iterate = true });
             defer src.close();
 
             var dest = try dest_dir.makeOpenPath(entry.name, .{ .no_follow = true });
@@ -363,7 +362,7 @@ fn copyDir(source_dir: std.fs.IterableDir, dest_dir: std.fs.Dir, options: std.fs
 
             try copyDir(src, dest, options);
         } else {
-            try copyTree(source_dir.dir, entry.name, dest_dir, entry.name, options);
+            try copyTree(source_dir, entry.name, dest_dir, entry.name, options);
         }
     }
 }

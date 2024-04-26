@@ -63,10 +63,10 @@ pub fn add(extension: []const u8, opener: []const u8, closer: []const u8, line_p
     if (opener.len == 0 or closer.len == 0) return error.InvalidToken;
 
     var alloc = allocators.global_arena.allocator();
-    var extension_copy = try alloc.dupe(u8, extension);
-    var opener_copy = try alloc.dupe(u8, opener);
-    var closer_copy = try alloc.dupe(u8, closer);
-    var line_prefix_copy = try alloc.dupe(u8, line_prefix);
+    const extension_copy = try alloc.dupe(u8, extension);
+    const opener_copy = try alloc.dupe(u8, opener);
+    const closer_copy = try alloc.dupe(u8, closer);
+    const line_prefix_copy = try alloc.dupe(u8, line_prefix);
 
     try langs.put(extension_copy, .{
         .opener = opener_copy,
@@ -88,7 +88,7 @@ const Parser = struct {
     line_num: u32 = 1,
 
     fn init(temp_arena: *std.heap.ArenaAllocator, verbose: bool) !Parser {
-        var allocator = temp_arena.allocator();
+        const allocator = temp_arena.allocator();
         return Parser{
             .allocator = allocator,
             .extension = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 16),
@@ -228,7 +228,7 @@ pub fn load(verbose: bool) !void {
     var exe_dir = try std.fs.cwd().openDir(exe_dir_path, .{});
     defer exe_dir.close();
 
-    var limplangs_contents = exe_dir.readFileAlloc(temp_arena.allocator(), ".limplangs", 1 << 30) catch |err| switch (err) {
+    const limplangs_contents = exe_dir.readFileAlloc(temp_arena.allocator(), ".limplangs", 1 << 30) catch |err| switch (err) {
         error.FileNotFound => return,
         else => return err,
     };

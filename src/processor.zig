@@ -137,7 +137,7 @@ pub const Processor = struct {
         { // add newlines at the beginning so that lua will report the right line number
             var line: i64 = 0;
             while (line < newlines_seen) {
-                std.mem.copy(u8, remaining, newline_style);
+                @memcpy(remaining.ptr, newline_style);
                 remaining = remaining[newline_style.len..];
                 line += 1;
             }
@@ -153,7 +153,7 @@ pub const Processor = struct {
                 start_of_line = end_of_line + 1;
             }
 
-            std.mem.copy(u8, remaining, raw_program[0..start_of_line]);
+            @memcpy(remaining.ptr, raw_program[0..start_of_line]);
             remaining = remaining[start_of_line..];
 
             program_newlines += 1;
@@ -166,7 +166,7 @@ pub const Processor = struct {
             }
         }
 
-        std.mem.copy(u8, remaining, raw_program);
+        @memcpy(remaining.ptr, raw_program);
         remaining = remaining[raw_program.len..];
 
         section.clean_program = section.clean_program[0 .. section.clean_program.len - remaining.len];
@@ -189,12 +189,12 @@ pub const Processor = struct {
         const limp_line_prefix = self.limp_tokens.line_prefix;
 
         var limp_header = try temp_alloc.alloc(u8, comment_opener.len + limp_opener.len);
-        std.mem.copy(u8, limp_header, comment_opener);
-        std.mem.copy(u8, limp_header[comment_opener.len..], limp_opener);
+        @memcpy(limp_header.ptr, comment_opener);
+        @memcpy(limp_header[comment_opener.len..].ptr, limp_opener);
 
         var full_line_prefix = try temp_alloc.alloc(u8, comment_line_prefix.len + limp_line_prefix.len);
-        std.mem.copy(u8, full_line_prefix, comment_line_prefix);
-        std.mem.copy(u8, full_line_prefix[comment_line_prefix.len..], limp_line_prefix);
+        @memcpy(full_line_prefix.ptr, comment_line_prefix);
+        @memcpy(full_line_prefix[comment_line_prefix.len..].ptr, limp_line_prefix);
 
         var initial_bytes_of_closers = [2]u8{ limp_closer[0], comment_closer[0] };
 
@@ -215,7 +215,7 @@ pub const Processor = struct {
             // find the end of the limp program, and parse the number of generated lines (if present)
             var closer_search_loc = opener_loc + limp_header.len;
             while (std.mem.indexOfAnyPos(u8, remaining, closer_search_loc, &initial_bytes_of_closers)) |potential_closer_loc| {
-                var potential_closer = remaining[potential_closer_loc..];
+                const potential_closer = remaining[potential_closer_loc..];
                 if (std.mem.startsWith(u8, potential_closer, limp_closer)) {
                     // next up should be the number of generated lines
                     const limp_closer_loc = potential_closer_loc;
@@ -294,11 +294,11 @@ pub const Processor = struct {
         }
     }
 
-    pub fn process(self: *Processor) !ProcessResult {
+    pub fn process(self: *Processor, eval_strings: []const []const u8) !ProcessResult {
         const l = try lua.State.init();
         defer l.deinit();
 
-        return self.processInner(l) catch |err| switch (err) {
+        return self.processInner(l, eval_strings) catch |err| switch (err) {
             error.LuaRuntimeError => {
                 const msg = l.getString(1, "(trace not available)");
                 std.io.getStdErr().writer().print("{s}\n", .{msg}) catch {};
@@ -313,7 +313,7 @@ pub const Processor = struct {
         };
     }
 
-    fn processInner(self: *Processor, l: lua.State) !ProcessResult {
+    fn processInner(self: *Processor, l: lua.State, eval_strings: []const []const u8) !ProcessResult {
         const initializers = [_]lua.c.lua_CFunction{
             lua.registerStdLib,
             lua.fs.registerFsLib,
@@ -334,6 +334,12 @@ pub const Processor = struct {
 
         try l.execute(limp_core, "@LIMP core");
 
+        for (1.., eval_strings) |num, eval_string| {
+            var name_buf: [32]u8 = undefined;
+            const name = try std.fmt.bufPrintZ(&name_buf, "--eval #{d}", .{ num });
+            try l.execute(eval_string, name);
+        }
+
         try self.processed_sections.ensureTotalCapacity(temp_alloc, self.parsed_sections.items.len);
         self.processed_sections.items.len = 0;
 
@@ -349,22 +355,22 @@ pub const Processor = struct {
             try l.setGlobalString("base_indent", section.indent);
             try l.setGlobalString("nl_style", section.newline_style);
 
-            var limp_name = try std.fmt.allocPrintZ(temp_alloc, "@{s} LIMP {d}", .{ self.file_path, i });
+            const limp_name = try std.fmt.allocPrintZ(temp_alloc, "@{s} LIMP {d}", .{ self.file_path, i });
             try l.execute(section.clean_program, limp_name);
 
             try l.pushGlobal("_finish");
             try l.call(0, 1);
-            var raw_output = l.getString(-1, "");
+            const raw_output = l.getString(-1, "");
 
             l.setTop(0);
 
             // make sure output ends with a newline
             var output = try temp_alloc.alloc(u8, raw_output.len + section.newline_style.len);
-            std.mem.copy(u8, output, raw_output);
+            @memcpy(output.ptr, raw_output);
             if (std.mem.endsWith(u8, raw_output, section.newline_style)) {
                 output.len = raw_output.len;
             } else {
-                std.mem.copy(u8, output[raw_output.len..], section.newline_style);
+                @memcpy(output[raw_output.len..], section.newline_style);
             }
 
             var line_count: i32 = 0;
@@ -380,7 +386,7 @@ pub const Processor = struct {
                 } else break;
             }
 
-            var limp_footer = try std.fmt.allocPrintZ(temp_alloc, "{s} {d} {s}", .{ self.limp_tokens.closer, line_count, self.comment_tokens.closer });
+            const limp_footer = try std.fmt.allocPrintZ(temp_alloc, "{s} {d} {s}", .{ self.limp_tokens.closer, line_count, self.comment_tokens.closer });
 
             try self.processed_sections.append(temp_alloc, .{
                 .text = section.text,

@@ -4,7 +4,7 @@ pub const fs = @import("lua-fs.zig");
 pub const sexpr = @import("lua-sexpr.zig");
 pub const util = @import("lua-util.zig");
 pub const c = @cImport({
-    @cDefine("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{@sizeOf(allocators.TempAllocator)}));
+    @cDefine("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{@sizeOf(allocators.Temp_Allocator)}));
     @cInclude("lua.h");
     @cInclude("lualib.h");
     @cInclude("lauxlib.h");
@@ -17,7 +17,7 @@ pub fn registerStdLib(l: L) callconv(.C) c_int {
     return 0;
 }
 
-pub fn getTempAlloc(l: L) *allocators.TempAllocator {
+pub fn getTempAlloc(l: L) *allocators.Temp_Allocator {
     // Note: this relies on LUA_EXTRASPACE being defined correctly, both in the @cImport and when the lua source files are compiled
     return @ptrCast(@alignCast(c.lua_getextraspace(l)));
 }
@@ -26,9 +26,9 @@ pub const State = struct {
     l: L,
 
     pub fn init() !State {
-        var l = c.luaL_newstate();
+        const l = c.luaL_newstate();
         errdefer c.lua_close(l);
-        getTempAlloc(l).* = try allocators.TempAllocator.init(100 * 1024 * 1024);
+        getTempAlloc(l).* = try allocators.Temp_Allocator.init(100 * 1024 * 1024);
         return State {
             .l = l,
         };
@@ -77,7 +77,7 @@ pub const State = struct {
     }
 
     pub fn call(self: State, num_args: c_int, num_results: c_int) !void {
-        var func_index = self.getTop() - num_args;
+        const func_index = self.getTop() - num_args;
         self.pushCFunction(traceUnsafe);
         self.moveToIndex(func_index); // put it under function and args
         defer self.removeIndex(func_index);
@@ -89,10 +89,10 @@ pub const State = struct {
     }
     fn traceUnsafe(l: L) callconv(.C) c_int {
         if (c.lua_isstring(l, 1) != 0) {
-            var ptr = c.lua_tolstring(l, 1, null);
+            const ptr = c.lua_tolstring(l, 1, null);
             c.luaL_traceback(l, l, ptr, 1);
         } else if (!c.lua_isnoneornil(l, 1)) {
-            var ptr = c.luaL_tolstring(l, 1, null);
+            const ptr = c.luaL_tolstring(l, 1, null);
             c.luaL_traceback(l, l, ptr, 1);
             removeIndex(.{ .l = l }, 2);
         }
@@ -171,7 +171,7 @@ pub const State = struct {
         self.callNoTrace(1, 1);
     }
     fn pushStringUnsafe(l: L) callconv(.C) c_int {
-        var str_ptr = @as(*[]const u8, c.lua_topointer(l, 1));
+        const str_ptr = @as(*[]const u8, c.lua_topointer(l, 1));
         c.lua_settop(l, 0);
         _ = c.lua_pushlstring(l, str_ptr.*.ptr, str_ptr.*.len);
         return 1;
@@ -220,7 +220,7 @@ pub const State = struct {
     pub fn debugStack(self: State, msg: []const u8) !void {
         var stdout = std.io.getStdOut().writer();
 
-        var top = self.getTop();
+        const top = self.getTop();
         try stdout.print("{s} ({}): ", .{ msg, top });
 
         var i: c_int = 1;

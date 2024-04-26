@@ -1,7 +1,6 @@
 const std = @import("std");
-const config = @import("build_config.zig");
 const @"Zig-TempAllocator" = @import("Zig-TempAllocator");
-const TempAllocator = @"Zig-TempAllocator".TempAllocator;
+const Temp_Allocator = @"Zig-TempAllocator".Temp_Allocator;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -22,17 +21,14 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .single_threaded = true,
     });
-    exe.addOptions("config", options);
-    exe.addModule("TempAllocator", b.dependency("Zig-TempAllocator", .{}).module("TempAllocator"));
-    exe.addModule("sx", b.dependency("Zig-SX", .{}).module("sx"));
+    exe.root_module.addOptions("config", options);
+    exe.root_module.addImport("Temp_Allocator", b.dependency("Zig-TempAllocator", .{}).module("Temp_Allocator"));
+    exe.root_module.addImport("sx", b.dependency("Zig-SX", .{}).module("sx"));
 
     exe.addIncludePath(.{ .path = "lua/" });
-    exe.addIncludePath(.{ .path = "zlib/" });
 
-    var extraSpace = std.fmt.comptimePrint("{}", .{@sizeOf(TempAllocator)});
+    const extraSpace = std.fmt.comptimePrint("{}", .{@sizeOf(Temp_Allocator)});
     exe.defineCMacro("LUA_EXTRASPACE", extraSpace);
-    exe.defineCMacro("Z_SOLO", "");
-    exe.defineCMacro("ZLIB_CONST", "");
 
     const lua_c_files = [_][]const u8{
         "lapi.c",    "lcode.c",    "lctype.c",   "ldebug.c",
@@ -46,11 +42,6 @@ pub fn build(b: *std.Build) void {
         "lstrlib.c", "ltablib.c",  "lutf8lib.c", "linit.c",
     };
 
-    const zlib_c_files = [_][]const u8{
-        "adler32.c",  "crc32.c",   "deflate.c", "inflate.c",
-        "inftrees.c", "inffast.c", "trees.c",   "zutil.c",
-    };
-
     const c_flags = [_][]const u8{
         "-std=c99",
         "-fno-strict-aliasing",
@@ -62,13 +53,6 @@ pub fn build(b: *std.Build) void {
     inline for (lua_c_files) |c_file| {
         exe.addCSourceFile(.{
             .file = .{ .path = "lua/" ++ c_file },
-            .flags = &c_flags,
-        });
-    }
-
-    inline for (zlib_c_files) |c_file| {
-        exe.addCSourceFile(.{
-            .file = .{ .path = "zlib/" ++ c_file },
             .flags = &c_flags,
         });
     }
