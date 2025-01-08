@@ -1,6 +1,5 @@
 const std = @import("std");
-const @"Zig-TempAllocator" = @import("Zig-TempAllocator");
-const Temp_Allocator = @"Zig-TempAllocator".Temp_Allocator;
+const Temp_Allocator = @import("Temp_Allocator").Temp_Allocator;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -14,7 +13,7 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = exe_name,
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .version = version,
         .target = target,
         .optimize = mode,
@@ -22,13 +21,10 @@ pub fn build(b: *std.Build) void {
         .single_threaded = true,
     });
     exe.root_module.addOptions("config", options);
-    exe.root_module.addImport("Temp_Allocator", b.dependency("Zig-TempAllocator", .{}).module("Temp_Allocator"));
-    exe.root_module.addImport("sx", b.dependency("Zig-SX", .{}).module("sx"));
-
-    exe.addIncludePath(.{ .path = "lua/" });
-
-    const extraSpace = std.fmt.comptimePrint("{}", .{@sizeOf(Temp_Allocator)});
-    exe.defineCMacro("LUA_EXTRASPACE", extraSpace);
+    exe.root_module.addImport("Temp_Allocator", b.dependency("Temp_Allocator", .{}).module("Temp_Allocator"));
+    exe.root_module.addImport("sx", b.dependency("sx", .{}).module("sx"));
+    exe.root_module.addIncludePath(b.path("lua/"));
+    exe.root_module.addCMacro("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{ @sizeOf(Temp_Allocator) }));
 
     const lua_c_files = [_][]const u8{
         "lapi.c",    "lcode.c",    "lctype.c",   "ldebug.c",
@@ -51,8 +47,8 @@ pub fn build(b: *std.Build) void {
     };
 
     inline for (lua_c_files) |c_file| {
-        exe.addCSourceFile(.{
-            .file = .{ .path = "lua/" ++ c_file },
+        exe.root_module.addCSourceFile(.{
+            .file = b.path("lua/" ++ c_file),
             .flags = &c_flags,
         });
     }
@@ -66,7 +62,7 @@ pub fn build(b: *std.Build) void {
     }
 
     const tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = mode,
     });

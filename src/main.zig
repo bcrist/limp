@@ -153,7 +153,7 @@ fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
     defer dir.close();
 
     if (option_verbose) {
-        var real_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+        var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
         const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
         try std.io.getStdOut().writer().print("{s}: Searching for files...\n", .{real_path});
     }
@@ -170,7 +170,7 @@ fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
                 }
             },
             .sym_link => {
-                var symlink_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+                var symlink_buffer: [std.fs.max_path_bytes]u8 = undefined;
                 if (dir.readLink(entry.name, &symlink_buffer)) |new_path| {
                     if (option_recursive) {
                         processInput(new_path, dir, false);
@@ -286,20 +286,20 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
 }
 
 fn printPathStatus(detail: []const u8, path: []const u8, within_dir: std.fs.Dir) void {
-    var real_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
     std.io.getStdOut().writer().print("{s}: {s}\n", .{ real_path, detail }) catch {};
 }
 
 fn printPathError(detail: []const u8, path: []const u8, within_dir: std.fs.Dir) void {
-    var real_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
     std.io.getStdErr().writer().print("{s}: {s}\n", .{ real_path, detail }) catch {};
     exit_code.unknown = true;
 }
 
 fn printUnexpectedPathError(where: []const u8, path: []const u8, within_dir: std.fs.Dir, err: anyerror) void {
-    var real_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
     std.io.getStdErr().writer().print("{s}: Unexpected error {s}: {}\n", .{ real_path, where, err }) catch {};
     exit_code.unknown = true;
@@ -432,7 +432,7 @@ fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
 }
 
 fn processExtensionList(list: []const u8) !void {
-    var it = std.mem.split(u8, list, ",");
+    var it = std.mem.splitScalar(u8, list, ',');
     while (it.next()) |raw_ext| {
         const ext = try if (raw_ext.len <= 128) std.ascii.allocLowerString(global_alloc, raw_ext) else global_alloc.dupe(u8, raw_ext);
         try extensions.put(ext, {});

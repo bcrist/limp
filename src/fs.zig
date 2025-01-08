@@ -128,7 +128,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
                 result_index += result_disk_designator.len;
             },
             WindowsPath.Kind.NetworkShare => {
-                var it = std.mem.tokenize(u8, paths[first_index], "/\\");
+                var it = std.mem.tokenizeAny(u8, paths[first_index], "/\\");
                 const server_name = it.next().?;
                 const other_name = it.next().?;
 
@@ -165,7 +165,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
         if (!correct_disk_designator) {
             continue;
         }
-        var it = std.mem.tokenize(u8, p[parsed.disk_designator.len..], "/\\");
+        var it = std.mem.tokenizeAny(u8, p[parsed.disk_designator.len..], "/\\");
         while (it.next()) |component| {
             if (std.mem.eql(u8, component, ".")) {
                 continue;
@@ -323,11 +323,10 @@ fn compareDiskDesignators(kind: WindowsPath.Kind, p1: []const u8, p2: []const u8
             const sep1 = p1[0];
             const sep2 = p2[0];
 
-            var it1 = std.mem.tokenize(u8, p1, &[_]u8{sep1});
-            var it2 = std.mem.tokenize(u8, p2, &[_]u8{sep2});
+            var it1 = std.mem.tokenizeScalar(u8, p1, sep1);
+            var it2 = std.mem.tokenizeScalar(u8, p2, sep2);
 
-            // TODO ASCII is wrong, we actually need full unicode support to compare paths.
-            return std.ascii.eqlIgnoreCase(it1.next().?, it2.next().?) and std.ascii.eqlIgnoreCase(it1.next().?, it2.next().?);
+            return std.os.windows.eqlIgnoreCaseWtf8(it1.next().?, it2.next().?) and std.os.windows.eqlIgnoreCaseWtf8(it1.next().?, it2.next().?);
         },
     }
 }
