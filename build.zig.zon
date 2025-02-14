@@ -1,16 +1,16 @@
 .{
     .name = "LIMP",
-    .version = "0.2.10",
-    .minimum_zig_version = "0.14.0-dev.2627+6a21d18ad",
+    .version = "0.2.11",
+    .minimum_zig_version = "0.14.0-dev.3217+5b9b5e45c",
     .paths = .{""},
     .dependencies = .{
         .Temp_Allocator = .{
-            .url = "git+https://github.com/bcrist/Zig-TempAllocator#0f42bc77b7da384655fcef8f4f85fc078fa0efe1",
-            .hash = "1220223a16891214e3ddf4fb55950cf46e6c79c68dadca5b22a974530d6451ae3870",
+            .url = "git+https://github.com/bcrist/Zig-TempAllocator#058f6331d499e81df7b58858e7307543d5484404",
+            .hash = "1220701ccddd24087e96610b5d8251a1244e1d07c805e835f21780f231ea17b12f93",
         },
         .sx = .{
-            .url = "git+https://github.com/bcrist/Zig-SX#8291c30b19f6e88fc34d2c1184b9c247e79fed1a",
-            .hash = "1220f9676794558cbd0823e73840dc67fdc81fa275fce883059f2a06666cdfda1539",
+            .url = "git+https://github.com/bcrist/Zig-SX#f3a56e591afdd398f942d7f27c1cce65b679bd4e",
+            .hash = "12206047f1173bf0e02b12f2e9300eb999187e98de7a10a1a7f4b12da16692da4747",
         },
     },
 }
