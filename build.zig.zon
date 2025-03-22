@@ -1,5 +1,6 @@
 .{
     .name = .limp,
+    .fingerprint = 0x97e403decf2c0046,
     .version = "0.2.11",
     .minimum_zig_version = "0.14.0",
     .paths = .{""},
