@@ -1,5 +1,6 @@
 const std = @import("std");
 const allocators = @import("allocators.zig");
+const root = @import("root");
 
 pub const LangTokens = struct {
     opener: []const u8,
@@ -146,7 +147,8 @@ const Parser = struct {
                         if (c <= ' ') break;
                         self.state = State.comment_or_error;
                         self.error_on_line = true;
-                        try std.io.getStdErr().writer().print(".limplangs:{d}: Too many tokens; expected <extension> <opener> <closer>: ", .{self.line_num});
+                        try root.stderr.print(".limplangs:{d}: Too many tokens; expected <extension> <opener> <closer>: ", .{self.line_num});
+                        try root.stderr.flush();
                         break;
                     },
                     State.extension => {
@@ -200,16 +202,19 @@ const Parser = struct {
 
         if (!self.error_on_line) {
             if (self.closer.items.len == 0) {
-                try std.io.getStdErr().writer().print(".limplangs:{d}: Too few tokens; expected <extension> <opener> <closer> [line-prefix]: ", .{self.line_num});
+                try root.stderr.print(".limplangs:{d}: Too few tokens; expected <extension> <opener> <closer> [line-prefix]: ", .{self.line_num});
+                try root.stderr.flush();
                 self.error_on_line = true;
             }
         }
 
         if (self.error_on_line) {
-            try std.io.getStdErr().writer().print("{s}\n", .{self.line.items});
+            try root.stderr.print("{s}\n", .{self.line.items});
+            try root.stderr.flush();
         } else {
             if (self.verbose) {
-                try std.io.getStdOut().writer().print("Loaded language tokens for .{s} files: {s} {s}\n", .{ self.extension.items, self.opener.items, self.closer.items });
+                try root.stdout.print("Loaded language tokens for .{s} files: {s} {s}\n", .{ self.extension.items, self.opener.items, self.closer.items });
+                try root.stdout.flush();
             }
             try add(self.extension.items, self.opener.items, self.closer.items, self.prefix.items);
         }

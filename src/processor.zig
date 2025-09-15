@@ -209,7 +209,8 @@ pub const Processor = struct {
 
             if (root.option_very_verbose) {
                 const offset = @intFromPtr(remaining.ptr) - @intFromPtr(file_contents.ptr) + opener_loc;
-                std.io.getStdOut().writer().print("{s}:{}: Found LIMP header at offset {}.\n", .{ self.file_path, newlines_seen, offset }) catch {};
+                root.stdout.print("{s}:{}: Found LIMP header at offset {}.\n", .{ self.file_path, newlines_seen, offset }) catch {};
+                root.stdout.flush() catch {};
             }
 
             // find the end of the limp program, and parse the number of generated lines (if present)
@@ -271,7 +272,8 @@ pub const Processor = struct {
                 }
             } else {
                 if (!root.option_quiet) {
-                    std.io.getStdErr().writer().print("{s}: Found EOF before end of LIMP; possible file truncation?\n", .{ self.file_path, }) catch {};
+                    root.stderr.print("{s}: Found EOF before end of LIMP; possible file truncation?\n", .{ self.file_path, }) catch {};
+                    root.stderr.flush() catch {};
                 }
                 section.raw_program = remaining[opener_loc + limp_header.len ..];
                 newlines_seen += try parseRawProgram(&section, newlines_seen, full_line_prefix);
@@ -301,12 +303,14 @@ pub const Processor = struct {
         return self.processInner(l, assignments, eval_strings) catch |err| switch (err) {
             error.LuaRuntimeError => {
                 const msg = l.getString(1, "(trace not available)");
-                std.io.getStdErr().writer().print("{s}\n", .{msg}) catch {};
+                root.stderr.print("{s}\n", .{msg}) catch {};
+                root.stderr.flush() catch {};
                 return .ignore;
             },
             error.LuaSyntaxError => {
                 const msg = l.getString(1, "(details not available)");
-                std.io.getStdErr().writer().print("{s}\n", .{msg}) catch {};
+                root.stderr.print("{s}\n", .{msg}) catch {};
+                root.stderr.flush() catch {};
                 return .ignore;
             },
             else => return err,
@@ -359,8 +363,12 @@ pub const Processor = struct {
             try l.setGlobalString("base_indent", section.indent);
             try l.setGlobalString("nl_style", section.newline_style);
 
-            const limp_name = try std.fmt.allocPrintZ(temp_alloc, "@{s} LIMP {d}", .{ self.file_path, i });
-            try l.execute(section.clean_program, limp_name);
+            var limp_name_writer = std.io.Writer.Allocating.init(temp_alloc);
+            try limp_name_writer.writer.print("@{s} LIMP {d}", .{ self.file_path, i });
+            try limp_name_writer.writer.writeByte(0);
+            const limp_name = limp_name_writer.written();
+
+            try l.execute(section.clean_program, @ptrCast(limp_name[0 .. limp_name.len - 1]));
 
             try l.pushGlobal("_finish");
             try l.call(0, 1);
@@ -390,7 +398,8 @@ pub const Processor = struct {
                 } else break;
             }
 
-            const limp_footer = try std.fmt.allocPrintZ(temp_alloc, "{s} {d} {s}", .{ self.limp_tokens.closer, line_count, self.comment_tokens.closer });
+            var footer_writer = std.io.Writer.Allocating.init(temp_alloc);
+            try footer_writer.writer.print("{s} {d} {s}", .{ self.limp_tokens.closer, line_count, self.comment_tokens.closer });
 
             try self.processed_sections.append(temp_alloc, .{
                 .text = section.text,
@@ -399,7 +408,7 @@ pub const Processor = struct {
                 .limp_header = section.limp_header,
                 .raw_program = section.raw_program,
                 .clean_program = section.clean_program,
-                .limp_footer = limp_footer,
+                .limp_footer = footer_writer.written(),
                 .limp_output = output,
             });
 
@@ -417,7 +426,7 @@ pub const Processor = struct {
         //    }
     }
 
-    pub fn write(self: *Processor, writer: std.fs.File.Writer) !void {
+    pub fn write(self: *Processor, writer: *std.io.Writer) !void {
         for (self.processed_sections.items) |section| {
             try writer.writeAll(section.text);
             try writer.writeAll(section.limp_header);

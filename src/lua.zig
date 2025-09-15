@@ -12,7 +12,7 @@ pub const c = @cImport({
 const L = ?*c.lua_State;
 
 /// Use State.call(0, 0) or State.callAll to invoke this
-pub fn registerStdLib(l: L) callconv(.C) c_int {
+pub fn registerStdLib(l: L) callconv(.c) c_int {
     c.luaL_openlibs(l);
     return 0;
 }
@@ -66,7 +66,7 @@ pub const State = struct {
             else => return error.LuaRuntimeError,
         }
     }
-    fn callAllUnsafe(l: L) callconv(.C) c_int {
+    fn callAllUnsafe(l: L) callconv(.c) c_int {
         const top = c.lua_gettop(l);
         var i: c_int = 1;
         while (i <= top) : (i += 1) {
@@ -87,7 +87,7 @@ pub const State = struct {
             else => return error.LuaRuntimeError,
         }
     }
-    fn traceUnsafe(l: L) callconv(.C) c_int {
+    fn traceUnsafe(l: L) callconv(.c) c_int {
         if (c.lua_isstring(l, 1) != 0) {
             const ptr = c.lua_tolstring(l, 1, null);
             c.luaL_traceback(l, l, ptr, 1);
@@ -130,7 +130,7 @@ pub const State = struct {
         self.pushPointer(&params);
         try self.call(2, 1);
     }
-    fn pushTableStringUnsafe(l: L) callconv(.C) c_int {
+    fn pushTableStringUnsafe(l: L) callconv(.c) c_int {
         const params_ptr: *const TableStringParams = @ptrCast(@alignCast(c.lua_topointer(l, 2)));
         const params = params_ptr.*;
         _ = c.lua_pushlstring(l, params.slot.ptr, params.slot.len);
@@ -156,7 +156,7 @@ pub const State = struct {
         self.pushPointer(&params);
         try self.call(2, 0);
     }
-    fn setTableStringStringUnsafe(l: L) callconv(.C) c_int {
+    fn setTableStringStringUnsafe(l: L) callconv(.c) c_int {
         const params_ptr: *const TableStringParams = @ptrCast(@alignCast(c.lua_topointer(l, 2)));
         const params = params_ptr.*;
         _ = c.lua_pushlstring(l, params.slot.ptr, params.slot.len);
@@ -170,7 +170,7 @@ pub const State = struct {
         self.pushPointer(&str);
         self.callNoTrace(1, 1);
     }
-    fn pushStringUnsafe(l: L) callconv(.C) c_int {
+    fn pushStringUnsafe(l: L) callconv(.c) c_int {
         const str_ptr = @as(*[]const u8, c.lua_topointer(l, 1));
         c.lua_settop(l, 0);
         _ = c.lua_pushlstring(l, str_ptr.*.ptr, str_ptr.*.len);

@@ -10,7 +10,7 @@ pub export fn registerFsLib(l: L) c_int {
     return 0;
 }
 
-fn openFs(l: L) callconv(.C) c_int {
+fn openFs(l: L) callconv(.c) c_int {
     var funcs = [_]c.luaL_Reg{
         .{ .name = "absolute_path", .func = fsAbsolutePath },
         .{ .name = "canonical_path", .func = fsCanonicalPath },
@@ -41,7 +41,7 @@ fn openFs(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsAbsolutePath(l: L) callconv(.C) c_int {
+fn fsAbsolutePath(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
     const alloc = temp.allocator();
@@ -58,7 +58,7 @@ fn fsAbsolutePath(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsCanonicalPath(l: L) callconv(.C) c_int {
+fn fsCanonicalPath(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
     const alloc = temp.allocator();
@@ -75,7 +75,7 @@ fn fsCanonicalPath(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsComposePath(l: L) callconv(.C) c_int {
+fn fsComposePath(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
     var alloc = temp.allocator();
@@ -102,7 +102,7 @@ fn fsComposePath(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsComposePathSlash(l: L) callconv(.C) c_int {
+fn fsComposePathSlash(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
     var alloc = temp.allocator();
@@ -129,7 +129,7 @@ fn fsComposePathSlash(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsParentPath(l: L) callconv(.C) c_int {
+fn fsParentPath(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
     const result = std.fs.path.dirname(path) orelse "";
@@ -138,7 +138,7 @@ fn fsParentPath(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsAncestorRelativePath(l: L) callconv(.C) c_int {
+fn fsAncestorRelativePath(l: L) callconv(.c) c_int {
     var child: []const u8 = undefined;
     var ancestor: []const u8 = undefined;
     child.ptr = c.luaL_checklstring(l, 1, &child.len);
@@ -149,7 +149,7 @@ fn fsAncestorRelativePath(l: L) callconv(.C) c_int {
 }
 
 // function resolve_path (path, search_paths, include_cwd)
-fn fsResolvePath(l: L) callconv(.C) c_int {
+fn fsResolvePath(l: L) callconv(.c) c_int {
     if (c.lua_isnoneornil(l, 1)) {
         return 0;
     }
@@ -223,7 +223,7 @@ fn fsResolvePath(l: L) callconv(.C) c_int {
     return 0;
 }
 
-fn fsPathStem(l: L) callconv(.C) c_int {
+fn fsPathStem(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
@@ -235,7 +235,7 @@ fn fsPathStem(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsPathFilename(l: L) callconv(.C) c_int {
+fn fsPathFilename(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
@@ -244,7 +244,7 @@ fn fsPathFilename(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsPathExtension(l: L) callconv(.C) c_int {
+fn fsPathExtension(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
@@ -253,7 +253,7 @@ fn fsPathExtension(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsReplaceExtension(l: L) callconv(.C) c_int {
+fn fsReplaceExtension(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
     const alloc = temp.allocator();
@@ -273,7 +273,7 @@ fn fsReplaceExtension(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsCwd(l: L) callconv(.C) c_int {
+fn fsCwd(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
     const alloc = temp.allocator();
@@ -287,7 +287,7 @@ fn fsCwd(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsSetCwd(l: L) callconv(.C) c_int {
+fn fsSetCwd(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
@@ -299,7 +299,7 @@ fn fsSetCwd(l: L) callconv(.C) c_int {
     return 0;
 }
 
-fn fsStat(l: L) callconv(.C) c_int {
+fn fsStat(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
@@ -382,7 +382,7 @@ fn fsStat(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsGetFileContents(l: L) callconv(.C) c_int {
+fn fsGetFileContents(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
     const alloc = temp.allocator();
@@ -407,20 +407,20 @@ fn fsGetFileContents(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn fsPutFileContents(l: L) callconv(.C) c_int {
+fn fsPutFileContents(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
     var contents: []const u8 = undefined;
     contents.ptr = c.luaL_tolstring(l, 2, &contents.len);
 
-    var af = std.fs.cwd().atomicFile(path, .{}) catch |err| {
+    var af = std.fs.cwd().atomicFile(path, .{ .write_buffer = &.{} }) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
     // We can't defer af.deinit(); because luaL_error longjmps away.
 
-    af.file.writeAll(contents) catch |err| {
+    af.file_writer.interface.writeAll(contents) catch |err| {
         af.deinit();
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
@@ -436,7 +436,7 @@ fn fsPutFileContents(l: L) callconv(.C) c_int {
     return 0;
 }
 
-fn fsMove(l: L) callconv(.C) c_int {
+fn fsMove(l: L) callconv(.c) c_int {
     var src_path: []const u8 = undefined;
     src_path.ptr = c.luaL_checklstring(l, 1, &src_path.len);
 
@@ -468,7 +468,7 @@ fn fsMove(l: L) callconv(.C) c_int {
     return 0;
 }
 
-fn fsCopy(l: L) callconv(.C) c_int {
+fn fsCopy(l: L) callconv(.c) c_int {
     var src_path: []const u8 = undefined;
     src_path.ptr = c.luaL_checklstring(l, 1, &src_path.len);
 
@@ -501,7 +501,7 @@ fn fsCopy(l: L) callconv(.C) c_int {
     return 0;
 }
 
-fn fsDelete(l: L) callconv(.C) c_int {
+fn fsDelete(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
@@ -530,7 +530,7 @@ fn fsDelete(l: L) callconv(.C) c_int {
     return 0;
 }
 
-fn fsEnsureDirExists(l: L) callconv(.C) c_int {
+fn fsEnsureDirExists(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
@@ -542,7 +542,7 @@ fn fsEnsureDirExists(l: L) callconv(.C) c_int {
     return 0;
 }
 
-fn fsVisit(l: L) callconv(.C) c_int {
+fn fsVisit(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
     const alloc = temp.allocator();

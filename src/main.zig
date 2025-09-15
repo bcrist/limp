@@ -16,6 +16,12 @@ const arg_alloc = arg_arena.allocator();
 const global_alloc = allocators.global_arena.allocator();
 const temp_alloc = allocators.temp_arena.allocator();
 
+var stdout_buf: [4096]u8 = undefined;
+var stderr_buf: [64]u8 = undefined;
+
+pub var stdout: *std.io.Writer = undefined;
+pub var stderr: *std.io.Writer = undefined;
+
 pub var option_verbose = false;
 pub var option_very_verbose = false;
 pub var option_quiet = false;
@@ -28,10 +34,10 @@ var option_dry_run = false;
 var option_break_on_fail = false;
 
 var depfile_path: ?[]const u8 = null;
-var input_paths = std.ArrayList([]const u8).init(global_alloc);
+var input_paths = std.array_list.Managed([]const u8).init(global_alloc);
 var extensions = std.StringHashMap(void).init(global_alloc);
-var eval_strings = std.ArrayList([]const u8).init(global_alloc);
-var assignments = std.ArrayList(Assignment).init(global_alloc);
+var eval_strings = std.array_list.Managed([]const u8).init(global_alloc);
+var assignments = std.array_list.Managed(Assignment).init(global_alloc);
 
 pub const Assignment = struct {
     key: []const u8,
@@ -49,11 +55,21 @@ var exit_code = ExitCode{};
 pub fn main() !void {
     allocators.temp_arena = try allocators.Temp_Allocator.init(1024 * 1024 * 1024);
 
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+
+    stderr = &stderr_writer.interface;
+    stdout = &stdout_writer.interface;
+
     try run();
     // run() catch {
     //     if (@errorReturnTrace()) |trace| std.debug.dumpStackTrace(trace.*);
     //     exit_code.unknown = true;
     // };
+
+    stderr.flush() catch {};
+    stdout.flush() catch {};
+
     std.process.exit(@bitCast(exit_code));
 }
 
@@ -76,8 +92,6 @@ fn run() !void {
         option_show_version = true;
         exit_code.bad_arg = true;
     }
-
-    const stdout = std.io.getStdOut().writer();
 
     if (option_show_version) {
         try stdout.print("LIMP {s} Copyright (C) 2011-2024 Benjamin M. Crist\n", .{ config.version });
@@ -105,6 +119,8 @@ fn run() !void {
             try stdout.writeAll(help_exitcodes);
         }
     }
+
+    try stdout.flush();
 
     try languages.initDefaults();
     try languages.load(option_verbose);
@@ -155,7 +171,8 @@ fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
     if (option_verbose) {
         var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
         const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
-        try std.io.getStdOut().writer().print("{s}: Searching for files...\n", .{real_path});
+        try stdout.print("{s}: Searching for files...\n", .{real_path});
+        try stdout.flush();
     }
 
     var iter = dir.iterate();
@@ -264,9 +281,13 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
                     if (!option_quiet) {
                         printPathStatus("Rewriting", path, within_dir);
                     }
-                    var af = try within_dir.atomicFile(path, .{});
+
+                    var buf: [4096]u8 = undefined;
+                    var af = try within_dir.atomicFile(path, .{
+                        .write_buffer = &buf,
+                    });
                     defer af.deinit();
-                    try proc.write(af.file.writer());
+                    try proc.write(&af.file_writer.interface);
                     try af.finish();
                 }
             },
@@ -288,20 +309,23 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
 fn printPathStatus(detail: []const u8, path: []const u8, within_dir: std.fs.Dir) void {
     var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
-    std.io.getStdOut().writer().print("{s}: {s}\n", .{ real_path, detail }) catch {};
+    stderr.print("{s}: {s}\n", .{ real_path, detail }) catch {};
+    stderr.flush() catch {};
 }
 
 fn printPathError(detail: []const u8, path: []const u8, within_dir: std.fs.Dir) void {
     var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
-    std.io.getStdErr().writer().print("{s}: {s}\n", .{ real_path, detail }) catch {};
+    stderr.print("{s}: {s}\n", .{ real_path, detail }) catch {};
+    stderr.flush() catch {};
     exit_code.unknown = true;
 }
 
 fn printUnexpectedPathError(where: []const u8, path: []const u8, within_dir: std.fs.Dir, err: anyerror) void {
     var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
-    std.io.getStdErr().writer().print("{s}: Unexpected error {s}: {}\n", .{ real_path, where, err }) catch {};
+    stderr.print("{s}: Unexpected error {s}: {}\n", .{ real_path, where, err }) catch {};
+    stderr.flush() catch {};
     exit_code.unknown = true;
 }
 
@@ -355,7 +379,7 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
         if (args.next()) |list| {
             try processExtensionList(list);
         } else {
-            try std.io.getStdErr().writer().writeAll("Expected extension list after --extensions\n");
+            try stderr.writeAll("Expected extension list after --extensions\n");
             exit_code.bad_arg = true;
         }
     } else if (std.mem.startsWith(u8, arg, "--extensions=")) {
@@ -364,7 +388,7 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
         if (args.next()) |path| {
             depfile_path = try global_alloc.dupe(u8, path);
         } else {
-            try std.io.getStdErr().writer().writeAll("Expected input directory path after --depfile\n");
+            try stderr.writeAll("Expected input directory path after --depfile\n");
             exit_code.bad_arg = true;
         }
     } else if (std.mem.startsWith(u8, arg, "--depfile=")) {
@@ -379,11 +403,11 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
                     .value = dupe_value,
                 });
             } else {
-                try std.io.getStdErr().writer().writeAll("Expected value after --set <key>\n");
+                try stderr.writeAll("Expected value after --set <key>\n");
                 exit_code.bad_arg = true;
             }
         } else {
-            try std.io.getStdErr().writer().writeAll("Expected global key after --set\n");
+            try stderr.writeAll("Expected global key after --set\n");
             exit_code.bad_arg = true;
         }
     } else if (std.mem.eql(u8, arg, "--eval")) {
@@ -391,13 +415,14 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
             const dupe_str = try global_alloc.dupe(u8, str);
             try eval_strings.append(dupe_str);
         } else {
-            try std.io.getStdErr().writer().writeAll("Expected string to evaluate after --eval\n");
+            try stderr.writeAll("Expected string to evaluate after --eval\n");
             exit_code.bad_arg = true;
         }
     } else {
-        try std.io.getStdErr().writer().print("Unrecognized option: {s}\n", .{arg});
+        try stderr.print("Unrecognized option: {s}\n", .{arg});
         exit_code.bad_arg = true;
     }
+    try stderr.flush();
 }
 
 fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
@@ -419,13 +444,15 @@ fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
             if (args.next()) |list| {
                 try processExtensionList(list);
             } else {
-                try std.io.getStdErr().writer().writeAll("Expected extension list after -x\n");
+                try stderr.writeAll("Expected extension list after -x\n");
+                try stderr.flush();
                 exit_code.bad_arg = true;
             }
         },
         else => {
             const option = [_]u8{c};
-            try std.io.getStdErr().writer().print("Unrecognized option: -{s}\n", .{option});
+            try stderr.print("Unrecognized option: -{s}\n", .{option});
+            try stderr.flush();
             exit_code.bad_arg = true;
         },
     }

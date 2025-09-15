@@ -13,16 +13,20 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = exe_name,
-        .root_source_file = b.path("src/main.zig"),
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = mode,
+            .link_libc = true,
+            .single_threaded = true,
+            .imports = &.{
+                .{ .name = "Temp_Allocator", .module = b.dependency("Temp_Allocator", .{}).module("Temp_Allocator") },
+                .{ .name = "sx", .module = b.dependency("sx", .{}).module("sx") },
+            },
+        }),
         .version = version,
-        .target = target,
-        .optimize = mode,
-        .link_libc = true,
-        .single_threaded = true,
     });
     exe.root_module.addOptions("config", options);
-    exe.root_module.addImport("Temp_Allocator", b.dependency("Temp_Allocator", .{}).module("Temp_Allocator"));
-    exe.root_module.addImport("sx", b.dependency("sx", .{}).module("sx"));
     exe.root_module.addIncludePath(b.path("lua/"));
     exe.root_module.addCMacro("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{ @sizeOf(Temp_Allocator) }));
 
@@ -62,11 +66,11 @@ pub fn build(b: *std.Build) void {
     }
 
     const tests = b.addTest(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = mode,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = mode,
+        }),
     });
-
-    const test_run = b.addRunArtifact(tests);
-    b.step("test", "test limp").dependOn(&test_run.step);
+    b.step("test", "test limp").dependOn(&b.addRunArtifact(tests).step);
 }

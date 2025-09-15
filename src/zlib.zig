@@ -21,14 +21,16 @@ pub fn deflate(temp_alloc: *allocators.Temp_Allocator, uncompressed: []const u8,
         out = out[@sizeOf(u64)..];
     }
 
-    var uncompressed_stream = std.io.fixedBufferStream(uncompressed);
-    var compressed_stream = std.io.fixedBufferStream(out);
+    var writer = std.io.Writer.fixed(out);
 
-    try std.compress.flate.compress(uncompressed_stream.reader(), compressed_stream.writer(), .{
+    var compress = std.compress.flate.Compress.init(&writer, &.{}, .{
         .level = @enumFromInt(level),
     });
 
-    var compressed_size = compressed_stream.getWritten().len;
+    try compress.writer.writeAll(uncompressed);
+    try compress.end();
+
+    var compressed_size = writer.buffered().len;
 
     if (encode_length) {
         compressed_size += @sizeOf(u64);
@@ -67,12 +69,15 @@ pub fn inflate(temp_alloc: *allocators.Temp_Allocator, compressed: []const u8, u
     const uncompressed = try temp_alloc.allocator().alloc(u8, @max(1, uncompressed_length));
     errdefer temp_alloc.allocator().free(uncompressed);
 
-    var compressed_stream = std.io.fixedBufferStream(compressed);
-    var uncompressed_stream = std.io.fixedBufferStream(uncompressed);
+    var reader = std.io.Reader.fixed(compressed);
+    var writer = std.io.Writer.fixed(uncompressed);
 
-    try std.compress.flate.decompress(compressed_stream.reader(), uncompressed_stream.writer());
+    var buf: [std.compress.flate.max_window_len]u8 = undefined;
+    var decompress = std.compress.flate.Decompress.init(&reader, .raw, &buf);
 
-    const result = uncompressed_stream.getWritten();
+    _ = try decompress.reader.streamRemaining(&writer);
+
+    const result = writer.buffered();
     _ = temp_alloc.allocator().resize(uncompressed, result.len);
     return result;
 }

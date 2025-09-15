@@ -10,7 +10,7 @@ pub export fn registerUtilLib(l: L) c_int {
     return 0;
 }
 
-fn openUtil(l: L) callconv(.C) c_int {
+fn openUtil(l: L) callconv(.c) c_int {
     var funcs = [_]c.luaL_Reg{
         .{ .name = "deflate", .func = utilDeflate },
         .{ .name = "inflate", .func = utilInflate },
@@ -22,7 +22,7 @@ fn openUtil(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn utilDeflate(l: L) callconv(.C) c_int {
+fn utilDeflate(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
 
@@ -58,7 +58,7 @@ fn utilDeflate(l: L) callconv(.C) c_int {
     return 1;
 }
 
-fn utilInflate(l: L) callconv(.C) c_int {
+fn utilInflate(l: L) callconv(.c) c_int {
     var temp = lua.getTempAlloc(l);
     defer temp.reset(.{});
 
