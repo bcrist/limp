@@ -1,6 +1,6 @@
 const std = @import("std");
 const config = @import("config");
-const allocators = @import("allocators.zig");
+const globals = @import("globals.zig");
 const languages = @import("languages.zig");
 const processor = @import("processor.zig");
 const lua = @import("lua.zig");
@@ -13,14 +13,11 @@ const help_exitcodes = @embedFile("help-exitcodes.txt");
 
 var arg_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 const arg_alloc = arg_arena.allocator();
-const global_alloc = allocators.global_arena.allocator();
-const temp_alloc = allocators.temp_arena.allocator();
+const global_alloc = globals.arena.allocator();
+const temp_alloc = globals.temp_arena.allocator();
 
-var stdout_buf: [4096]u8 = undefined;
-var stderr_buf: [64]u8 = undefined;
-
-pub var stdout: *std.io.Writer = undefined;
-pub var stderr: *std.io.Writer = undefined;
+pub var stdout: *std.Io.Writer = undefined;
+pub var stderr: *std.Io.Writer = undefined;
 
 pub var option_verbose = false;
 pub var option_very_verbose = false;
@@ -52,16 +49,20 @@ const ExitCode = packed struct (u8) {
 };
 var exit_code = ExitCode{};
 
-pub fn main() !void {
-    allocators.temp_arena = try allocators.Temp_Allocator.init(1024 * 1024 * 1024);
+pub fn main(init: std.process.Init) !void {
+    globals.temp_arena = try .init(1024 * 1024 * 1024);
+    globals.io = init.io;
 
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout_buf: [4096]u8 = undefined;
+    var stderr_buf: [64]u8 = undefined;
+
+    var stderr_writer = std.Io.File.stderr().writer(init.io, &stderr_buf);
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buf);
 
     stderr = &stderr_writer.interface;
     stdout = &stdout_writer.interface;
 
-    try run();
+    try run(init.io, init.minimal.args);
     // run() catch {
     //     if (@errorReturnTrace()) |trace| std.debug.dumpStackTrace(trace.*);
     //     exit_code.unknown = true;
@@ -73,12 +74,12 @@ pub fn main() !void {
     std.process.exit(@bitCast(exit_code));
 }
 
-fn run() !void {
-    var args = try std.process.argsWithAllocator(arg_alloc);
-    _ = args.next(); // skip path to exe
+fn run(io: std.Io, args: std.process.Args) !void {
+    var args_iter = try args.iterateAllocator(arg_alloc);
+    _ = args_iter.next(); // skip path to exe
 
-    while (args.next()) |arg| {
-        try processArg(arg, &args);
+    while (args_iter.next()) |arg| {
+        try processArg(arg, &args_iter);
     }
 
     arg_arena.deinit();
@@ -123,7 +124,7 @@ fn run() !void {
     try stdout.flush();
 
     try languages.initDefaults();
-    try languages.load(option_verbose);
+    try languages.load(io, option_verbose);
 
     if (extensions.count() == 0) {
         var it = languages.langs.keyIterator();
@@ -134,68 +135,70 @@ fn run() !void {
         }
     }
 
-    // TODO running with mutiple input paths results in
-    // Unexpected error searching directory: error.Unexpected
-    // possibly a bug with std.fs.cwd()?  Maybe you can't store
-    // the result if you plan to change the cwd?
-    var origin = try std.fs.cwd().openDir(".", .{});
-    defer origin.close();
+    var root_path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const root_path_bytes = try std.Io.Dir.cwd().realPath(io, &root_path_buf);
+    const root_path = root_path_buf[0..root_path_bytes];
+    
+    var root_dir = try std.Io.Dir.cwd().openDir(io, root_path, .{});
+    defer root_dir.close(io);
+
     for (input_paths.items) |input_path| {
-        processInput(input_path, origin, true);
+        processInput(io, input_path, root_dir, root_path, true);
         if (shouldStopProcessing()) break;
     }
 }
 
-fn processInput(path: []const u8, within_dir: std.fs.Dir, explicitly_requested: bool) void {
-    if (!processDir(path, within_dir)) processFile(path, within_dir, explicitly_requested);
+fn processInput(io: std.Io, path: []const u8, parent_dir: std.Io.Dir, parent_path: []const u8, explicitly_requested: bool) void {
+    if (!processDir(io, path, parent_dir, parent_path)) processFile(io, path, parent_dir, parent_path, explicitly_requested);
 }
 
-fn processDir(path: []const u8, within_dir: std.fs.Dir) bool {
-    return processDirInner(path, within_dir) catch |err| {
-        printUnexpectedPathError("searching directory", path, within_dir, err);
+fn processDir(io: std.Io, path: []const u8, parent_dir: std.Io.Dir, parent_path: []const u8) bool {
+    return processDirInner(io, path, parent_dir, parent_path) catch |err| {
+        printUnexpectedPathError("searching directory", path, parent_path, err);
         return true;
     };
 }
 
-fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
-    var dir = within_dir.openDir(path, .{ .iterate = true }) catch |err| switch (err) {
+fn processDirInner(io: std.Io, path: []const u8, parent_dir: std.Io.Dir, parent_path: []const u8) !bool {
+    var dir = parent_dir.openDir(io, path, .{ .iterate = true }) catch |err| switch (err) {
         error.NotDir => return false,
         error.FileNotFound => {
-            printPathError("Directory or file not found", path, within_dir);
+            printPathError("Directory or file not found", path, parent_path);
             return true;
         },
         else => return err,
     };
-    defer dir.close();
+    defer dir.close(io);
+
+    const dir_path = try std.Io.Dir.path.join(globals.gpa, &.{ parent_path, path });
+    defer globals.gpa.free(dir_path);
 
     if (option_verbose) {
-        var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
-        try stdout.print("{s}: Searching for files...\n", .{real_path});
-        try stdout.flush();
+        printPathStatus("Searching for files...", path, parent_path);
     }
 
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(io)) |entry| {
         switch (entry.kind) {
             .file => {
-                processFile(entry.name, dir, false);
+                processFile(io, entry.name, dir, dir_path, false);
             },
             .directory => {
                 if (option_recursive) {
-                    processInput(entry.name, dir, false);
+                    processInput(io, entry.name, dir, dir_path, false);
                 }
             },
             .sym_link => {
-                var symlink_buffer: [std.fs.max_path_bytes]u8 = undefined;
-                if (dir.readLink(entry.name, &symlink_buffer)) |new_path| {
+                var symlink_buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
+                if (dir.readLink(io, entry.name, &symlink_buffer)) |bytes| {
+                    const new_path = symlink_buffer[0..bytes];
                     if (option_recursive) {
-                        processInput(new_path, dir, false);
+                        processInput(io, new_path, dir, dir_path, false);
                     } else {
-                        processFile(new_path, dir, false);
+                        processFile(io, new_path, dir, dir_path, false);
                     }
                 } else |err| {
-                    printUnexpectedPathError("reading link", entry.name, dir, err);
+                    printUnexpectedPathError("reading link", entry.name, dir_path, err);
                 }
             },
             else => {},
@@ -206,15 +209,15 @@ fn processDirInner(path: []const u8, within_dir: std.fs.Dir) !bool {
     return true;
 }
 
-fn processFile(path: []const u8, within_dir: std.fs.Dir, explicitly_requested: bool) void {
-    processFileInner(path, within_dir, explicitly_requested) catch |err| {
-        printUnexpectedPathError("processing file", path, within_dir, err);
+fn processFile(io: std.Io, path: []const u8, parent_dir: std.Io.Dir, parent_path: []const u8, explicitly_requested: bool) void {
+    processFileInner(io, path, parent_dir, parent_path, explicitly_requested) catch |err| {
+        printUnexpectedPathError("processing file", path, parent_path, err);
     };
 }
 
-fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_requested: bool) !void {
+fn processFileInner(io: std.Io, path: []const u8, parent_dir: std.Io.Dir, parent_path: []const u8, explicitly_requested: bool) !void {
     var ext_lower_buf: [128]u8 = undefined;
-    var extension = std.fs.path.extension(path);
+    var extension = std.Io.Dir.path.extension(path);
     if (extension.len > 1 and extension[0] == '.') {
         extension = extension[1..];
     }
@@ -224,76 +227,81 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
 
     if (!explicitly_requested and (extension.len == 0 or !extensions.contains(extension))) {
         if (option_very_verbose) {
-            printPathError("Unrecognized extension", path, within_dir);
+            printPathError("Unrecognized extension", path, parent_path);
         }
         return;
     }
 
-    allocators.temp_arena.reset(.{});
+    globals.temp_arena.reset(.{});
 
-    var old_file_contents = within_dir.readFileAlloc(temp_alloc, path, 1 << 30) catch |err| {
+    var old_file_contents = parent_dir.readFileAlloc(io, path, temp_alloc, .limited(1 << 30)) catch |err| {
         switch (err) {
             error.FileNotFound => {
                 if (explicitly_requested or option_very_verbose) {
-                    printPathError("Not a file or directory", path, within_dir);
+                    printPathError("Not a file or directory", path, parent_path);
                 }
                 return;
             },
             else => {
-                printUnexpectedPathError("loading file", path, within_dir, err);
+                printUnexpectedPathError("loading file", path, parent_path, err);
                 return;
             },
         }
     };
 
+    var old_file_stat = try parent_dir.statFile(io, path, .{ .follow_symlinks = true });
+
     if (!option_quiet and old_file_contents.len >= 2) {
         if (std.mem.eql(u8, old_file_contents[0..2], "\xFF\xFE") or std.mem.eql(u8, old_file_contents[0..2], "\xFE\xFF")) {
-            printPathError("File is UTF-16 encoded; LIMP only supports UTF-8 files", path, within_dir);
+            printPathError("File is UTF-16 encoded; LIMP only supports UTF-8 files", path, parent_path);
             return;
         } else for (old_file_contents[0..@min(40, old_file_contents.len - 1)]) |c| {
             if (c == 0) {
-                printPathError("File might be UTF-16 encoded; LIMP only supports UTF-8 files", path, within_dir);
+                printPathError("File might be UTF-16 encoded; LIMP only supports UTF-8 files", path, parent_path);
                 break;
             }
         }
     }
 
-    const real_path = within_dir.realpathAlloc(temp_alloc, path) catch path;
+    const real_path = parent_dir.realPathFileAlloc(io, path, temp_alloc) catch path;
 
     var proc = processor.Processor.init(languages.get(extension), languages.getLimp());
     try proc.parse(real_path, old_file_contents);
 
     if (proc.isProcessable()) {
-        if (std.fs.path.dirname(real_path)) |dir| {
-            try std.posix.chdir(dir);
-        }
+        try std.process.setCurrentDir(io, parent_dir);
         switch (try proc.process(assignments.items, eval_strings.items)) {
             .ignore => {
                 if (option_verbose) {
-                    printPathStatus("Ignoring", path, within_dir);
+                    printPathStatus("Ignoring", path, parent_path);
                 }
                 exit_code.bad_input = true;
             },
             .modified => {
                 if (option_dry_run) {
-                    printPathStatus("Out of date", path, within_dir);
+                    printPathStatus("Out of date", path, parent_path);
                 } else {
                     if (!option_quiet) {
-                        printPathStatus("Rewriting", path, within_dir);
+                        printPathStatus("Rewriting", path, parent_path);
                     }
 
-                    var buf: [4096]u8 = undefined;
-                    var af = try within_dir.atomicFile(path, .{
-                        .write_buffer = &buf,
+                    var af = try parent_dir.createFileAtomic(io, path, .{
+                        .permissions = old_file_stat.permissions,
+                        .replace = true,
                     });
-                    defer af.deinit();
-                    try proc.write(&af.file_writer.interface);
-                    try af.finish();
+                    defer af.deinit(io);
+
+                    var buf: [4096]u8 = undefined;
+                    var writer = af.file.writer(io, &buf);
+
+                    try proc.write(&writer.interface);
+                    try writer.interface.flush();
+                    try af.replace(io);
                 }
             },
             .up_to_date => {
                 if (!option_quiet) {
-                    printPathStatus("Up to date", path, within_dir);
+                    printPathStatus("Up to date", path, parent_path);
                 }
             },
         }
@@ -302,31 +310,31 @@ fn processFileInner(path: []const u8, within_dir: std.fs.Dir, explicitly_request
         //     try section.debug();
         // }
     } else if (explicitly_requested or option_very_verbose) {
-        printPathStatus("Nothing to process", path, within_dir);
+        printPathStatus("Nothing to process", path, parent_path);
     }
 }
 
-fn printPathStatus(detail: []const u8, path: []const u8, within_dir: std.fs.Dir) void {
-    var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
-    stderr.print("{s}: {s}\n", .{ real_path, detail }) catch {};
+fn printPathStatus(detail: []const u8, path: []const u8, parent_dir: []const u8) void {
+    const joined = std.Io.Dir.path.join(globals.gpa, &.{ parent_dir, path }) catch return;
+    defer globals.gpa.free(joined);
+    stderr.print("{s}: {s}\n", .{ joined, detail }) catch {};
     stderr.flush() catch {};
 }
 
-fn printPathError(detail: []const u8, path: []const u8, within_dir: std.fs.Dir) void {
-    var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
-    stderr.print("{s}: {s}\n", .{ real_path, detail }) catch {};
-    stderr.flush() catch {};
+fn printPathError(detail: []const u8, path: []const u8, parent_dir: []const u8) void {
     exit_code.unknown = true;
+    const joined = std.Io.Dir.path.join(globals.gpa, &.{ parent_dir, path }) catch return;
+    defer globals.gpa.free(joined);
+    stderr.print("{s}: {s}\n", .{ joined, detail }) catch {};
+    stderr.flush() catch {};
 }
 
-fn printUnexpectedPathError(where: []const u8, path: []const u8, within_dir: std.fs.Dir, err: anyerror) void {
-    var real_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const real_path = within_dir.realpath(path, &real_path_buffer) catch path;
-    stderr.print("{s}: Unexpected error {s}: {}\n", .{ real_path, where, err }) catch {};
+fn printUnexpectedPathError(where: []const u8, path: []const u8, parent_dir: []const u8, err: anyerror) void {
+    defer exit_code.unknown = true;
+    const joined = std.Io.Dir.path.join(globals.gpa, &.{ parent_dir, path }) catch return;
+    defer globals.gpa.free(joined);
+    stderr.print("{s}: Unexpected error {s}: {}\n", .{ joined, where, err }) catch {};
     stderr.flush() catch {};
-    exit_code.unknown = true;
 }
 
 fn shouldStopProcessing() bool {
@@ -335,7 +343,7 @@ fn shouldStopProcessing() bool {
 
 var check_option_args = true;
 
-fn processArg(arg: []const u8, args: *std.process.ArgIterator) !void {
+fn processArg(arg: []const u8, args: *std.process.Args.Iterator) !void {
     if (check_option_args and arg.len > 0 and arg[0] == '-') {
         if (arg.len > 1) {
             if (arg[1] == '-') {
@@ -351,7 +359,7 @@ fn processArg(arg: []const u8, args: *std.process.ArgIterator) !void {
     try input_paths.append(path);
 }
 
-fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
+fn processLongOption(arg: []const u8, args: *std.process.Args.Iterator) !void {
     if (arg.len == 2) {
         check_option_args = false;
     } else if (std.mem.eql(u8, arg, "--dry-run")) {
@@ -425,7 +433,7 @@ fn processLongOption(arg: []const u8, args: *std.process.ArgIterator) !void {
     try stderr.flush();
 }
 
-fn processShortOption(c: u8, args: *std.process.ArgIterator) !void {
+fn processShortOption(c: u8, args: *std.process.Args.Iterator) !void {
     switch (c) {
         'R' => option_recursive = true,
         'n' => option_dry_run = true,

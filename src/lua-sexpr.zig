@@ -1,6 +1,6 @@
 const std = @import("std");
 const root = @import("root");
-const allocators = @import("allocators.zig");
+const globals = @import("globals.zig");
 const sx = @import("sx");
 const lua = @import("lua.zig");
 const c = lua.c;
@@ -61,7 +61,7 @@ fn openSx(l: L) callconv(.c) c_int {
 }
 
 const Parser = struct {
-    stream_reader: std.io.Reader,
+    stream_reader: std.Io.Reader,
     reader: sx.Reader,
 };
 
@@ -78,14 +78,14 @@ fn sexprParser(l: L) callconv(.c) c_int {
     var parser: *Parser = @ptrCast(@alignCast(c.lua_newuserdata(l, @sizeOf(Parser))));
     c.luaL_setmetatable(l, "class SxParser");
 
-    var alloc = allocators.global_gpa.allocator();
+    var alloc = globals.gpa;
 
     const ownedSource: []const u8 = alloc.dupe(u8, source) catch |e| {
         _ = c.luaL_error(l, @errorName(e).ptr);
         unreachable;
     };
 
-    parser.stream_reader = std.io.Reader.fixed(ownedSource);
+    parser.stream_reader = std.Io.Reader.fixed(ownedSource);
     parser.reader = sx.reader(alloc, &parser.stream_reader);
 
     return 1;
@@ -94,7 +94,7 @@ fn sexprParser(l: L) callconv(.c) c_int {
 fn parser__gc(l: L) callconv(.c) c_int {
     var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
     parser.reader.deinit();
-    allocators.global_gpa.allocator().free(parser.stream_reader.buffer);
+    globals.gpa.free(parser.stream_reader.buffer);
     return 0;
 }
 

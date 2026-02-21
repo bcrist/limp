@@ -1,10 +1,10 @@
 const std = @import("std");
-const allocators = @import("allocators.zig");
+const globals = @import("globals.zig");
 pub const fs = @import("lua-fs.zig");
 pub const sexpr = @import("lua-sexpr.zig");
 pub const util = @import("lua-util.zig");
 pub const c = @cImport({
-    @cDefine("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{@sizeOf(allocators.Temp_Allocator)}));
+    @cDefine("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{@sizeOf(globals.Temp_Allocator)}));
     @cInclude("lua.h");
     @cInclude("lualib.h");
     @cInclude("lauxlib.h");
@@ -17,7 +17,7 @@ pub fn registerStdLib(l: L) callconv(.c) c_int {
     return 0;
 }
 
-pub fn getTempAlloc(l: L) *allocators.Temp_Allocator {
+pub fn getTempAlloc(l: L) *globals.Temp_Allocator {
     // Note: this relies on LUA_EXTRASPACE being defined correctly, both in the @cImport and when the lua source files are compiled
     return @ptrCast(@alignCast(c.lua_getextraspace(l)));
 }
@@ -28,7 +28,7 @@ pub const State = struct {
     pub fn init() !State {
         const l = c.luaL_newstate();
         errdefer c.lua_close(l);
-        getTempAlloc(l).* = try allocators.Temp_Allocator.init(100 * 1024 * 1024);
+        getTempAlloc(l).* = try globals.Temp_Allocator.init(100 * 1024 * 1024);
         return State {
             .l = l,
         };
@@ -218,7 +218,7 @@ pub const State = struct {
     }
 
     pub fn debugStack(self: State, msg: []const u8) !void {
-        var stdout = std.io.getStdOut().writer();
+        var stdout = std.Io.getStdOut().writer();
 
         const top = self.getTop();
         try stdout.print("{s} ({}): ", .{ msg, top });

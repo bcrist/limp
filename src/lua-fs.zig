@@ -1,5 +1,5 @@
 const std = @import("std");
-const allocators = @import("allocators.zig");
+const globals = @import("globals.zig");
 const fs = @import("fs.zig");
 const lua = @import("lua.zig");
 const c = lua.c;
@@ -49,7 +49,7 @@ fn fsAbsolutePath(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-    const result = fs.toAbsolute(alloc, path) catch |err| {
+    const result = fs.toAbsolute(globals.io, alloc, path) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
@@ -66,7 +66,7 @@ fn fsCanonicalPath(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-    const result = std.fs.cwd().realpathAlloc(alloc, path) catch |err| {
+    const result = std.Io.Dir.cwd().realPathFileAlloc(globals.io, path, alloc) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
@@ -132,7 +132,7 @@ fn fsComposePathSlash(l: L) callconv(.c) c_int {
 fn fsParentPath(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
-    const result = std.fs.path.dirname(path) orelse "";
+    const result = std.Io.Dir.path.dirname(path) orelse "";
 
     _ = c.lua_pushlstring(l, result.ptr, result.len);
     return 1;
@@ -184,8 +184,8 @@ fn fsResolvePath(l: L) callconv(.c) c_int {
                 unreachable;
             };
 
-            std.fs.cwd().access(combined, .{}) catch |err| switch (err) {
-                error.FileNotFound, error.BadPathName, error.InvalidUtf8, error.NameTooLong => {
+            std.Io.Dir.cwd().access(globals.io, combined, .{}) catch |err| switch (err) {
+                error.FileNotFound, error.BadPathName, error.NameTooLong => {
                     break :blk;
                 },
                 else => {
@@ -203,16 +203,15 @@ fn fsResolvePath(l: L) callconv(.c) c_int {
         c.lua_pushcfunction(l, fsResolvePath);
         c.lua_pushvalue(l, 1);
         {
-            var temp = lua.getTempAlloc(l);
-            defer temp.reset(.{});
-            const alloc = temp.allocator();
-
-            const cwd = std.process.getCwdAlloc(alloc) catch |err| {
-                _ = c.luaL_error(l, fs.errorName(err).ptr);
-                unreachable;
+            var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+            const n = std.process.currentPath(globals.io, &buf) catch |err| switch (err) {
+                error.NameTooLong => unreachable,
+                else => |err| {
+                    _ = c.luaL_error(l, fs.errorName(err).ptr);
+                    unreachable;
+                },
             };
-
-            _ = c.lua_pushlstring(l, cwd.ptr, cwd.len);
+            _ = c.lua_pushlstring(l, (&buf).ptr, n);
         }
         c.lua_callk(l, 2, 1, 0, null); // resolve_path(input_path, cwd)
         if (!c.lua_isnoneornil(l, -1)) {
@@ -227,7 +226,7 @@ fn fsPathStem(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-    var filename = std.fs.path.basename(path);
+    var filename = std.Io.Dir.path.basename(path);
     const index = std.mem.lastIndexOfScalar(u8, filename, '.') orelse 0;
     if (index > 0) filename = filename[0..index];
 
@@ -239,7 +238,7 @@ fn fsPathFilename(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-    const result = std.fs.path.basename(path);
+    const result = std.Io.Dir.path.basename(path);
     _ = c.lua_pushlstring(l, result.ptr, result.len);
     return 1;
 }
@@ -248,7 +247,7 @@ fn fsPathExtension(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-    const result = std.fs.path.extension(path);
+    const result = std.Io.Dir.path.extension(path);
     _ = c.lua_pushlstring(l, result.ptr, result.len);
     return 1;
 }
@@ -274,16 +273,13 @@ fn fsReplaceExtension(l: L) callconv(.c) c_int {
 }
 
 fn fsCwd(l: L) callconv(.c) c_int {
-    var temp = lua.getTempAlloc(l);
-    defer temp.reset(.{});
-    const alloc = temp.allocator();
-
-    const result = std.process.getCwdAlloc(alloc) catch |err| {
+    var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const n = std.process.currentPath(globals.io, &buf) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
-    _ = c.lua_pushlstring(l, result.ptr, result.len);
+    _ = c.lua_pushlstring(l, (&buf).ptr, n);
     return 1;
 }
 
@@ -291,11 +287,18 @@ fn fsSetCwd(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-    std.posix.chdir(path) catch |err| {
+    var dir = std.Io.Dir.cwd().openDir(globals.io, path, .{}) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
+    std.process.setCurrentDir(globals.io, dir) catch |err| {
+        dir.close(globals.io);
+        _ = c.luaL_error(l, fs.errorName(err).ptr);
+        unreachable;
+    };
+
+    dir.close(globals.io);
     return 0;
 }
 
@@ -304,29 +307,31 @@ fn fsStat(l: L) callconv(.c) c_int {
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
     var exists = true;
-    var stat = std.fs.File.Stat {
+    var stat = std.Io.File.Stat {
         .inode = 0,
+        .nlink = 0,
         .size = 0,
-        .mode = 0,
-        .kind = std.fs.File.Kind.unknown,
-        .atime = 0,
-        .mtime = 0,
-        .ctime = 0,
+        .permissions = .default_file,
+        .kind = std.Io.File.Kind.unknown,
+        .atime = null,
+        .mtime = .zero,
+        .ctime = .zero,
+        .block_size = 0,
     };
-    if (std.fs.cwd().statFile(path)) |s| {
+    if (std.Io.Dir.cwd().statFile(globals.io, path, .{ .follow_symlinks = true })) |s| {
         stat = s;
     } else |statFileErr| switch (statFileErr) {
         error.IsDir => {
-            var dir = std.fs.cwd().openDir(path, .{}) catch |err| {
+            var dir = std.Io.Dir.cwd().openDir(globals.io, path, .{}) catch |err| {
                 _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
             };
-            stat = dir.stat() catch |err| {
+            stat = dir.stat(globals.io) catch |err| {
                 _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
             };
         },
-        error.FileNotFound, error.BadPathName, error.InvalidUtf8, error.NameTooLong => {
+        error.FileNotFound, error.BadPathName, error.NameTooLong => {
             exists = false;
         },
         else => {
@@ -365,19 +370,23 @@ fn fsStat(l: L) callconv(.c) c_int {
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "mode");
-    c.lua_pushinteger(l, @intCast(stat.mode));
+    c.lua_pushinteger(l, @intCast(@intFromEnum(stat.permissions)));
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "atime");
-    c.lua_pushinteger(l, @intCast(@divFloor(stat.atime, 1000000)));
+    if (stat.atime) |time| {
+        c.lua_pushinteger(l, time.toMilliseconds());
+    } else {
+        c.lua_pushnil(l);
+    }
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "mtime");
-    c.lua_pushinteger(l, @intCast(@divFloor(stat.mtime, 1000000)));
+    c.lua_pushinteger(l, stat.mtime.toMilliseconds());
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "ctime");
-    c.lua_pushinteger(l, @intCast(@divFloor(stat.ctime, 1000000)));
+    c.lua_pushinteger(l, stat.ctime.toMilliseconds());
     c.lua_rawset(l, 1);
     return 1;
 }
@@ -393,8 +402,8 @@ fn fsGetFileContents(l: L) callconv(.c) c_int {
     const max_size_c = c.lua_tointegerx(l, 2, null);
     const max_size: usize = if (max_size_c <= 0) 5_000_000_000 else @intCast(max_size_c);
 
-    const result = std.fs.cwd().readFileAlloc(alloc, path, max_size) catch |err| switch (err) {
-        error.FileNotFound, error.BadPathName, error.InvalidUtf8, error.NameTooLong => {
+    const result = std.Io.Dir.cwd().readFileAlloc(globals.io, path, alloc, .limited(max_size)) catch |err| switch (err) {
+        error.FileNotFound, error.BadPathName, error.NameTooLong => {
             return 0;
         },
         else => {
@@ -414,25 +423,47 @@ fn fsPutFileContents(l: L) callconv(.c) c_int {
     var contents: []const u8 = undefined;
     contents.ptr = c.luaL_tolstring(l, 2, &contents.len);
 
-    var af = std.fs.cwd().atomicFile(path, .{ .write_buffer = &.{} }) catch |err| {
+    const use_hardlink = c.lua_gettop(l) >= 3 and c.lua_toboolean(l, 3) != 0;
+
+    var af = std.Io.Dir.cwd().createFileAtomic(globals.io, path, .{
+        .make_path = true,
+        .replace = !use_hardlink,
+    }) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
     // We can't defer af.deinit(); because luaL_error longjmps away.
 
-    af.file_writer.interface.writeAll(contents) catch |err| {
-        af.deinit();
+    var buf: [16384]u8 = undefined;
+    var writer = af.file.writer(globals.io, &buf);
+
+    writer.interface.writeAll(contents) catch |err| {
+        af.deinit(globals.io);
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
-    af.finish() catch |err| {
-        af.deinit();
+    writer.interface.flush() catch |err| {
+        af.deinit(globals.io);
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
-    af.deinit();
+    if (use_hardlink) {
+        af.link(globals.io) catch |err| {
+            af.deinit(globals.io);
+            _ = c.luaL_error(l, fs.errorName(err).ptr);
+            unreachable;
+        };
+    } else {
+        af.replace(globals.io) catch |err| {
+            af.deinit(globals.io);
+            _ = c.luaL_error(l, fs.errorName(err).ptr);
+            unreachable;
+        };
+    }
+
+    af.deinit(globals.io);
     return 0;
 }
 
@@ -447,7 +478,7 @@ fn fsMove(l: L) callconv(.c) c_int {
 
     if (!force) {
         var exists = true;
-        std.fs.cwd().access(dest_path, .{}) catch |err| switch (err) {
+        std.Io.Dir.cwd().access(globals.io, dest_path, .{}) catch |err| switch (err) {
             error.FileNotFound => exists = false,
             else => {
                 _ = c.luaL_error(l, fs.errorName(err).ptr);
@@ -460,7 +491,7 @@ fn fsMove(l: L) callconv(.c) c_int {
         }
     }
 
-    std.fs.cwd().rename(src_path, dest_path) catch |err| {
+    std.Io.Dir.cwd().rename(src_path, std.Io.Dir.cwd(), dest_path, globals.io) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
@@ -479,7 +510,7 @@ fn fsCopy(l: L) callconv(.c) c_int {
 
     if (!force) {
         var exists = true;
-        std.fs.cwd().access(dest_path, .{}) catch |err| switch (err) {
+        std.Io.Dir.cwd().access(globals.io, dest_path, .{}) catch |err| switch (err) {
             error.FileNotFound => exists = false,
             else => {
                 _ = c.luaL_error(l, fs.errorName(err).ptr);
@@ -492,8 +523,7 @@ fn fsCopy(l: L) callconv(.c) c_int {
         }
     }
 
-    const cwd = std.fs.cwd();
-    fs.copyTree(cwd, src_path, cwd, dest_path, .{}) catch |err| {
+    fs.copyTree(globals.io, std.Io.Dir.cwd(), src_path, std.Io.Dir.cwd(), dest_path, .{}) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
@@ -507,15 +537,15 @@ fn fsDelete(l: L) callconv(.c) c_int {
 
     const recursive = c.lua_gettop(l) >= 2 and c.lua_toboolean(l, 2) != 0;
 
-    std.fs.cwd().deleteFile(path) catch |deleteFileErr| switch (deleteFileErr) {
+    std.Io.Dir.cwd().deleteFile(globals.io, path) catch |deleteFileErr| switch (deleteFileErr) {
         error.IsDir => {
             if (recursive) {
-                std.fs.cwd().deleteTree(path) catch |err| {
+                std.Io.Dir.cwd().deleteTree(globals.io, path) catch |err| {
                     _ = c.luaL_error(l, fs.errorName(err).ptr);
                     unreachable;
                 };
             } else {
-                std.fs.cwd().deleteDir(path) catch |err| {
+                std.Io.Dir.cwd().deleteDir(globals.io, path) catch |err| {
                     _ = c.luaL_error(l, fs.errorName(err).ptr);
                     unreachable;
                 };
@@ -534,7 +564,7 @@ fn fsEnsureDirExists(l: L) callconv(.c) c_int {
     var path: []const u8 = undefined;
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
-    std.fs.cwd().makePath(path) catch |err| {
+    std.Io.Dir.cwd().createDirPath(globals.io, path) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
@@ -553,21 +583,21 @@ fn fsVisit(l: L) callconv(.c) c_int {
     const recursive = c.lua_gettop(l) >= 3 and c.lua_toboolean(l, 3) != 0;
     const no_follow = c.lua_gettop(l) >= 4 and c.lua_toboolean(l, 4) != 0;
 
-    var dir = std.fs.cwd().openDir(path, .{ .no_follow = no_follow, .iterate = true }) catch |err| {
+    var dir = std.Io.Dir.cwd().openDir(globals.io, path, .{ .follow_symlinks = !no_follow, .iterate = true }) catch |err| {
         _ = c.luaL_error(l, fs.errorName(err).ptr);
         unreachable;
     };
 
     if (recursive) {
         var walker = dir.walk(alloc) catch |err| {
-            dir.close();
+            dir.close(globals.io);
             _ = c.luaL_error(l, fs.errorName(err).ptr);
             unreachable;
         };
 
-        while (walker.next() catch |err| {
+        while (walker.next(globals.io) catch |err| {
             walker.deinit();
-            dir.close();
+            dir.close(globals.io);
             _ = c.luaL_error(l, fs.errorName(err).ptr);
             unreachable;
         }) |entry| {
@@ -581,19 +611,19 @@ fn fsVisit(l: L) callconv(.c) c_int {
                 c.LUA_OK => {},
                 c.LUA_ERRMEM => {
                     walker.deinit();
-                    dir.close();
+                    dir.close(globals.io);
                     _ = c.luaL_error(l, "Lua Runtime Error");
                     unreachable;
                 },
                 c.LUA_ERRERR => {
                     walker.deinit();
-                    dir.close();
+                    dir.close(globals.io);
                     _ = c.lua_error(l);
                     unreachable;
                 },
                 else => {
                     walker.deinit();
-                    dir.close();
+                    dir.close(globals.io);
                     _ = c.luaL_error(l, "Lua Runtime Error");
                     unreachable;
                 },
@@ -603,8 +633,8 @@ fn fsVisit(l: L) callconv(.c) c_int {
 
     } else {
         var iter = dir.iterate();
-        while (iter.next() catch |err| {
-            dir.close();
+        while (iter.next(globals.io) catch |err| {
+            dir.close(globals.io);
             _ = c.luaL_error(l, fs.errorName(err).ptr);
             unreachable;
         }) |entry| {
@@ -617,24 +647,24 @@ fn fsVisit(l: L) callconv(.c) c_int {
             switch (c.lua_pcallk(l, 2, 0, 0, 0, null)) {
                 c.LUA_OK => {},
                 c.LUA_ERRMEM => {
-                    dir.close();
+                    dir.close(globals.io);
                     _ = c.luaL_error(l, "Lua Runtime Error");
                     unreachable;
                 },
                 c.LUA_ERRERR => {
-                    dir.close();
+                    dir.close(globals.io);
                     _ = c.lua_error(l);
                     unreachable;
                 },
                 else => {
-                    dir.close();
+                    dir.close(globals.io);
                     _ = c.luaL_error(l, "Lua Runtime Error");
                     unreachable;
                 },
             }
         }
     }
-    dir.close();
+    dir.close(globals.io);
 
     return 0;
 }

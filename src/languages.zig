@@ -1,5 +1,5 @@
 const std = @import("std");
-const allocators = @import("allocators.zig");
+const globals = @import("globals.zig");
 const root = @import("root");
 
 pub const LangTokens = struct {
@@ -16,7 +16,7 @@ pub const LangTokens = struct {
     }
 };
 
-pub var langs = std.StringHashMap(LangTokens).init(allocators.global_arena.allocator());
+pub var langs = std.StringHashMap(LangTokens).init(globals.arena.allocator());
 
 pub fn getLimp() LangTokens {
     return langs.get("!!") orelse LangTokens.init("!!", "!!", "");
@@ -63,7 +63,7 @@ pub fn initDefaults() !void {
 pub fn add(extension: []const u8, opener: []const u8, closer: []const u8, line_prefix: []const u8) !void {
     if (opener.len == 0 or closer.len == 0) return error.InvalidToken;
 
-    var alloc = allocators.global_arena.allocator();
+    var alloc = globals.arena.allocator();
     const extension_copy = try alloc.dupe(u8, extension);
     const opener_copy = try alloc.dupe(u8, opener);
     const closer_copy = try alloc.dupe(u8, closer);
@@ -225,15 +225,15 @@ const Parser = struct {
     }
 };
 
-pub fn load(verbose: bool) !void {
+pub fn load(io: std.Io, verbose: bool) !void {
     var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer temp_arena.deinit();
 
-    const exe_dir_path = try std.fs.selfExeDirPathAlloc(temp_arena.allocator());
-    var exe_dir = try std.fs.cwd().openDir(exe_dir_path, .{});
-    defer exe_dir.close();
+    const exe_dir_path = try std.process.executableDirPathAlloc(io, temp_arena.allocator());
+    var exe_dir = try std.Io.Dir.cwd().openDir(io, exe_dir_path, .{});
+    defer exe_dir.close(io);
 
-    const limplangs_contents = exe_dir.readFileAlloc(temp_arena.allocator(), ".limplangs", 1 << 30) catch |err| switch (err) {
+    const limplangs_contents = exe_dir.readFileAlloc(io, ".limplangs", temp_arena.allocator(), .limited(1 << 24)) catch |err| switch (err) {
         error.FileNotFound => return,
         else => return err,
     };

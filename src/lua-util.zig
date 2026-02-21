@@ -1,5 +1,5 @@
 const std = @import("std");
-const allocators = @import("allocators.zig");
+const globals = @import("globals.zig");
 const zlib = @import("zlib.zig");
 const lua = @import("lua.zig");
 const c = lua.c;

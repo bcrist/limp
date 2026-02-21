@@ -1,8 +1,8 @@
 const std = @import("std");
 const root = @import("root");
 const builtin = @import("builtin");
-const allocators = @import("allocators.zig");
-const temp_alloc = allocators.temp_arena.allocator();
+const globals = @import("globals.zig");
+const temp_alloc = globals.temp_arena.allocator();
 const languages = @import("languages.zig");
 const lua = @import("lua.zig");
 
@@ -329,8 +329,8 @@ pub const Processor = struct {
         //   belua::time_module,
 
         try l.setGlobalString("file_path", self.file_path);
-        try l.setGlobalString("file_name", std.fs.path.basename(self.file_path));
-        try l.setGlobalString("file_dir", std.fs.path.dirname(self.file_path) orelse "");
+        try l.setGlobalString("file_name", std.Io.Dir.path.basename(self.file_path));
+        try l.setGlobalString("file_dir", std.Io.Dir.path.dirname(self.file_path) orelse "");
         //try l.setGlobalString("file_contents", self.file_contents);
         try l.setGlobalString("comment_begin", self.comment_tokens.opener);
         try l.setGlobalString("comment_end", self.comment_tokens.closer);
@@ -363,7 +363,7 @@ pub const Processor = struct {
             try l.setGlobalString("base_indent", section.indent);
             try l.setGlobalString("nl_style", section.newline_style);
 
-            var limp_name_writer = std.io.Writer.Allocating.init(temp_alloc);
+            var limp_name_writer = std.Io.Writer.Allocating.init(temp_alloc);
             try limp_name_writer.writer.print("@{s} LIMP {d}", .{ self.file_path, i });
             try limp_name_writer.writer.writeByte(0);
             const limp_name = limp_name_writer.written();
@@ -398,7 +398,7 @@ pub const Processor = struct {
                 } else break;
             }
 
-            var footer_writer = std.io.Writer.Allocating.init(temp_alloc);
+            var footer_writer = std.Io.Writer.Allocating.init(temp_alloc);
             try footer_writer.writer.print("{s} {d} {s}", .{ self.limp_tokens.closer, line_count, self.comment_tokens.closer });
 
             try self.processed_sections.append(temp_alloc, .{
@@ -426,7 +426,7 @@ pub const Processor = struct {
         //    }
     }
 
-    pub fn write(self: *Processor, writer: *std.io.Writer) !void {
+    pub fn write(self: *Processor, writer: *std.Io.Writer) !void {
         for (self.processed_sections.items) |section| {
             try writer.writeAll(section.text);
             try writer.writeAll(section.limp_header);

@@ -2,11 +2,11 @@ const builtin = @import("builtin");
 const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
-const WindowsPath = std.fs.path.WindowsPath;
+const WindowsPath = std.Io.Dir.path.WindowsPath;
 const native_os = builtin.target.os.tag;
 
 pub fn replaceExtension(allocator: Allocator, path: []const u8, new_ext: []const u8) ![]u8 {
-    const old_ext = std.fs.path.extension(path);
+    const old_ext = std.Io.Dir.path.extension(path);
     const without_ext = path[0..(@intFromPtr(old_ext.ptr) - @intFromPtr(path.ptr))];
     var result: []u8 = undefined;
 
@@ -26,18 +26,17 @@ pub fn replaceExtension(allocator: Allocator, path: []const u8, new_ext: []const
     return result;
 }
 
-pub fn toAbsolute(allocator: Allocator, path: []const u8) ![]u8 {
-    if (std.fs.path.isAbsolute(path)) {
+pub fn toAbsolute(io: std.Io, allocator: Allocator, path: []const u8) ![]u8 {
+    if (std.Io.Dir.path.isAbsolute(path)) {
         return composePath(allocator, @as(*const [1][]const u8, &path), 0);
     } else {
-        const cwd = try std.process.getCwdAlloc(allocator);
+        const cwd = try std.process.currentPathAlloc(io, allocator);
         defer allocator.free(cwd);
-        var parts = [_][]const u8{ cwd, path };
-        return composePath(allocator, &parts, 0);
+        return composePath(allocator, &.{ cwd, path }, 0);
     }
 }
 
-/// Like std.fs.path.resolve, except it doesn't convert relative paths to absolute, and
+/// Like std.Io.Dir.path.resolve, except it doesn't convert relative paths to absolute, and
 /// it doesn't resolve ".." segments to avoid incorrect behavior in the presence of links.
 pub fn composePath(allocator: Allocator, paths: []const []const u8, sep: u8) ![]u8 {
     if (native_os == .windows) {
@@ -64,7 +63,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
     var first_index: usize = 0;
     var max_size: usize = 0;
     for (paths, 0..) |p, i| {
-        const parsed = std.fs.path.windowsParsePath(p);
+        const parsed = std.Io.Dir.path.windowsParsePath(p);
         if (parsed.is_abs) {
             have_abs_path = true;
             first_index = i;
@@ -95,7 +94,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
         var correct_disk_designator = false;
 
         for (paths, 0..) |p, i| {
-            const parsed = std.fs.path.windowsParsePath(p);
+            const parsed = std.Io.Dir.path.windowsParsePath(p);
             if (parsed.kind != WindowsPath.Kind.None) {
                 if (parsed.kind == have_drive_kind) {
                     correct_disk_designator = compareDiskDesignators(have_drive_kind, result_disk_designator, parsed.disk_designator);
@@ -153,7 +152,7 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
     // is big enough to append all the paths to.
     var correct_disk_designator = true;
     for (paths[first_index..]) |p| {
-        const parsed = std.fs.path.windowsParsePath(p);
+        const parsed = std.Io.Dir.path.windowsParsePath(p);
 
         if (parsed.kind != WindowsPath.Kind.None) {
             if (parsed.kind == have_drive_kind) {
@@ -210,7 +209,7 @@ pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8
     var have_abs = false;
     var max_size: usize = 0;
     for (paths, 0..) |p, i| {
-        if (std.fs.path.isAbsolutePosix(p)) {
+        if (std.Io.Dir.path.isAbsolutePosix(p)) {
             first_index = i;
             have_abs = true;
             max_size = 0;
@@ -331,37 +330,37 @@ fn compareDiskDesignators(kind: WindowsPath.Kind, p1: []const u8, p2: []const u8
     }
 }
 
-const CopyTreeError = std.fs.Dir.CopyFileError || std.fs.Dir.OpenError;
+const CopyTreeError = std.Io.Dir.CopyFileError || std.Io.Dir.OpenError;
 
-pub fn copyTree(source_dir: std.fs.Dir, source_path: []const u8, dest_dir: std.fs.Dir, dest_path: []const u8, options: std.fs.Dir.CopyFileOptions) CopyTreeError!void {
+pub fn copyTree(io: std.Io, source_dir: std.Io.Dir, source_path: []const u8, dest_dir: std.Io.Dir, dest_path: []const u8, options: std.Io.Dir.CopyFileOptions) CopyTreeError!void {
     // TODO figure out how to handle symlinks better
-    source_dir.copyFile(source_path, dest_dir, dest_path, options) catch |err| switch (err) {
+    source_dir.copyFile(source_path, dest_dir, dest_path, io, options) catch |err| switch (err) {
         error.IsDir => {
-            var src = try source_dir.openDir(source_path, .{ .no_follow = true, .iterate = true });
-            defer src.close();
+            var src = try source_dir.openDir(io, source_path, .{ .follow_symlinks = false, .iterate = true });
+            defer src.close(io);
 
-            var dest = try dest_dir.makeOpenPath(dest_path, .{ .no_follow = true });
-            defer dest.close();
+            var dest = try dest_dir.createDirPathOpen(io, dest_path, .{});
+            defer dest.close(io);
 
-            try copyDir(src, dest, options);
+            try copyDir(io, src, dest, options);
         },
         else => return err,
     };
 }
 
-fn copyDir(source_dir: std.fs.Dir, dest_dir: std.fs.Dir, options: std.fs.Dir.CopyFileOptions) CopyTreeError!void {
+fn copyDir(io: std.Io, source_dir: std.Io.Dir, dest_dir: std.Io.Dir, options: std.Io.Dir.CopyFileOptions) CopyTreeError!void {
     var iter = source_dir.iterate();
-    while (try iter.next()) |entry| {
-        if (entry.kind == std.fs.File.Kind.directory) {
-            var src = try source_dir.openDir(entry.name, .{ .no_follow = true, .iterate = true });
-            defer src.close();
+    while (try iter.next(io)) |entry| {
+        if (entry.kind == std.Io.File.Kind.directory) {
+            var src = try source_dir.openDir(io, entry.name, .{ .follow_symlinks = false, .iterate = true });
+            defer src.close(io);
 
-            var dest = try dest_dir.makeOpenPath(entry.name, .{ .no_follow = true });
-            defer dest.close();
+            var dest = try dest_dir.createDirPathOpen(io, entry.name, .{});
+            defer dest.close(io);
 
-            try copyDir(src, dest, options);
+            try copyDir(io, src, dest, options);
         } else {
-            try copyTree(source_dir, entry.name, dest_dir, entry.name, options);
+            try copyTree(io, source_dir, entry.name, dest_dir, entry.name, options);
         }
     }
 }

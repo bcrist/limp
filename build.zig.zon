@@ -1,17 +1,17 @@
 .{
     .name = .limp,
     .fingerprint = 0x97e403decf2c0046,
-    .version = "0.2.12",
-    .minimum_zig_version = "0.15.1",
+    .version = "0.2.13",
+    .minimum_zig_version = "0.16.0-dev.2626+0e3c6514a",
     .paths = .{""},
     .dependencies = .{
         .Temp_Allocator = .{
-            .url = "git+https://github.com/bcrist/zig-tempallocator#88164409c68f1b766df08d93728f1ff62929be71",
-            .hash = "Temp_Allocator-1.0.3-tT3p3OQwAADyXdF18H0zjXuId3fPBjPUN-DK5glT4DQr",
+            .url = "git+https://github.com/bcrist/zig-tempallocator?ref=zig-0.16#f1e148f769a78a2f9959ac8fdf0cb00a3496449c",
+            .hash = "Temp_Allocator-1.1.0-tT3p3A87AABZiuTViLy8MFQsedqQV9l2Wj7PB_B7lFni",
         },
         .sx = .{
-            .url = "git+https://github.com/bcrist/zig-sx#ba72271b89ec977abe63a2619d78275ad6327bdd",
-            .hash = "sx-1.1.6-0vgbao7JAADRoEBKC_iS9RBg2onrsLD-yeUiM_XuqStj",
+            .url = "git+https://github.com/bcrist/zig-sx?ref=zig-0.16#8c6a79351a8afd943d27a6aa133f162d607dadb0",
+            .hash = "sx-1.2.0-0vgbarDXAAB63Jg635DdSzgUNvoAEqw3DZyyPJtaf_3d",
         },
     },
 }

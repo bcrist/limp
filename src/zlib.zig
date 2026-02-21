@@ -1,5 +1,5 @@
 const std = @import("std");
-const allocators = @import("allocators.zig");
+const globals = @import("globals.zig");
 
 fn deflateBound(uncompressed_size: usize, encode_length: bool) usize {
     // TODO: is this still valid with the std.compress.flate implementation?  Probably not; let's use something more conservative...
@@ -11,7 +11,7 @@ fn deflateBound(uncompressed_size: usize, encode_length: bool) usize {
     return compressed_size;
 }
 
-pub fn deflate(temp_alloc: *allocators.Temp_Allocator, uncompressed: []const u8, encode_length: bool, level: i8) ![]u8 {
+pub fn deflate(temp_alloc: *globals.Temp_Allocator, uncompressed: []const u8, encode_length: bool, level: i8) ![]u8 {
     var allocator = temp_alloc.allocator();
     var result = try allocator.alloc(u8, deflateBound(uncompressed.len, encode_length));
     errdefer allocator.free(result);
@@ -21,14 +21,25 @@ pub fn deflate(temp_alloc: *allocators.Temp_Allocator, uncompressed: []const u8,
         out = out[@sizeOf(u64)..];
     }
 
-    var writer = std.io.Writer.fixed(out);
+    var writer = std.Io.Writer.fixed(out);
 
-    var compress = std.compress.flate.Compress.init(&writer, &.{}, .{
-        .level = @enumFromInt(level),
+    var buf: [std.compress.flate.max_window_len]u8 = undefined;
+
+    var compress = try std.compress.flate.Compress.init(&writer, &buf, .raw, switch (level) {
+        1 => .level_1,
+        2 => .level_2,
+        3 => .level_3,
+        4 => .level_4,
+        5 => .level_5,
+        6 => .level_6,
+        7 => .level_7,
+        8 => .level_8,
+        9 => .level_9,
+        else => return error.InvalidLevel,
     });
 
     try compress.writer.writeAll(uncompressed);
-    try compress.end();
+    try compress.writer.flush();
 
     var compressed_size = writer.buffered().len;
 
@@ -65,12 +76,12 @@ pub fn stripUncompressedLength(compressed: []const u8) []const u8 {
     }
 }
 
-pub fn inflate(temp_alloc: *allocators.Temp_Allocator, compressed: []const u8, uncompressed_length: usize) ![]u8 {
+pub fn inflate(temp_alloc: *globals.Temp_Allocator, compressed: []const u8, uncompressed_length: usize) ![]u8 {
     const uncompressed = try temp_alloc.allocator().alloc(u8, @max(1, uncompressed_length));
     errdefer temp_alloc.allocator().free(uncompressed);
 
-    var reader = std.io.Reader.fixed(compressed);
-    var writer = std.io.Writer.fixed(uncompressed);
+    var reader = std.Io.Reader.fixed(compressed);
+    var writer = std.Io.Writer.fixed(uncompressed);
 
     var buf: [std.compress.flate.max_window_len]u8 = undefined;
     var decompress = std.compress.flate.Decompress.init(&reader, .raw, &buf);
