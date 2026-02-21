@@ -1,5 +1,4 @@
 const std = @import("std");
-const config = @import("config");
 const globals = @import("globals.zig");
 const languages = @import("languages.zig");
 const processor = @import("processor.zig");
@@ -95,7 +94,7 @@ fn run(io: std.Io, args: std.process.Args) !void {
     }
 
     if (option_show_version) {
-        try stdout.print("LIMP {s} Copyright (C) 2011-2024 Benjamin M. Crist\n", .{ config.version });
+        try stdout.print("LIMP {s} Copyright (C) 2011-2026 Benjamin M. Crist\n", .{ @import("zon").version });
         try stdout.print("{s}\n", .{ lua.c.LUA_COPYRIGHT });
         try stdout.print("zig {s} {s}", .{
             @import("builtin").zig_version_string,

@@ -1,15 +1,20 @@
-const std = @import("std");
-const Temp_Allocator = @import("Temp_Allocator").Temp_Allocator;
-
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardOptimizeOption(.{});
     const exe_name = if (mode == .Debug) "limp-debug" else "limp";
-    const version_str = b.option([]const u8, "version", "override default version number") orelse "unreleased";
-    const version: std.SemanticVersion = std.SemanticVersion.parse(version_str) catch .{ .major = 0, .minor = 0, .patch = 0 };
 
-    const options = b.addOptions();
-    options.addOption([]const u8, "version", version_str);
+    const version: std.SemanticVersion = std.SemanticVersion.parse(zon.version) catch @panic("bad version string");
+
+    const lua_extraspace = b.fmt("{}", .{ @sizeOf(Temp_Allocator) });
+
+    const lua_translate_c = b.addTranslateC(.{
+        .root_source_file = b.path("lua/headers.h"),
+        .target = target,
+        .optimize = .Debug, // translate-c fails on windows for ReleaseSafe
+        .link_libc = true,
+        .use_clang = true,
+    });
+    lua_translate_c.defineCMacro("LUA_EXTRASPACE", lua_extraspace);
 
     const exe = b.addExecutable(.{
         .name = exe_name,
@@ -18,17 +23,17 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = mode,
             .link_libc = true,
-            .single_threaded = true,
             .imports = &.{
                 .{ .name = "Temp_Allocator", .module = b.dependency("Temp_Allocator", .{}).module("Temp_Allocator") },
                 .{ .name = "sx", .module = b.dependency("sx", .{}).module("sx") },
+                .{ .name = "zon", .module = b.createModule(.{ .root_source_file = b.path("build.zig.zon") }), },
+                .{ .name = "lua_c", .module = lua_translate_c.createModule() },
             },
         }),
         .version = version,
     });
-    exe.root_module.addOptions("config", options);
     exe.root_module.addIncludePath(b.path("lua/"));
-    exe.root_module.addCMacro("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{ @sizeOf(Temp_Allocator) }));
+    exe.root_module.addCMacro("LUA_EXTRASPACE", lua_extraspace);
 
     const lua_c_files = [_][]const u8{
         "lapi.c",    "lcode.c",    "lctype.c",   "ldebug.c",
@@ -74,3 +79,7 @@ pub fn build(b: *std.Build) void {
     });
     b.step("test", "test limp").dependOn(&b.addRunArtifact(tests).step);
 }
+
+const zon = @import("build.zig.zon");
+const Temp_Allocator = @import("Temp_Allocator").Temp_Allocator;
+const std = @import("std");

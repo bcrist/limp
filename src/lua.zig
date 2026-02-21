@@ -3,12 +3,7 @@ const globals = @import("globals.zig");
 pub const fs = @import("lua-fs.zig");
 pub const sexpr = @import("lua-sexpr.zig");
 pub const util = @import("lua-util.zig");
-pub const c = @cImport({
-    @cDefine("LUA_EXTRASPACE", std.fmt.comptimePrint("{}", .{@sizeOf(globals.Temp_Allocator)}));
-    @cInclude("lua.h");
-    @cInclude("lualib.h");
-    @cInclude("lauxlib.h");
-});
+pub const c = @import("lua_c");
 const L = ?*c.lua_State;
 
 /// Use State.call(0, 0) or State.callAll to invoke this
