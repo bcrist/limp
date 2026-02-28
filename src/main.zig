@@ -41,10 +41,8 @@ pub const Assignment = struct {
 };
 
 const ExitCode = packed struct (u8) {
-    unknown: bool = false,
-    bad_arg: bool = false,
-    bad_input: bool = false,
-    _: u5 = 0,
+    modified_files: u7 = 0,
+    err: bool = false,
 };
 var exit_code = ExitCode{};
 
@@ -64,7 +62,7 @@ pub fn main(init: std.process.Init) !void {
     try run(init.io, init.minimal.args);
     // run() catch {
     //     if (@errorReturnTrace()) |trace| std.debug.dumpStackTrace(trace.*);
-    //     exit_code.unknown = true;
+    //     exit_code.err = true;
     // };
 
     stderr.flush() catch {};
@@ -90,7 +88,7 @@ fn run(io: std.Io, args: std.process.Args) !void {
     if (!option_show_help and !option_show_version and input_paths.items.len == 0 and eval_strings.items.len == 0) {
         option_show_help = true;
         option_show_version = true;
-        exit_code.bad_arg = true;
+        exit_code.err = true;
     }
 
     if (option_show_version) {
@@ -274,7 +272,7 @@ fn processFileInner(io: std.Io, path: []const u8, parent_dir: std.Io.Dir, parent
                 if (option_verbose) {
                     printPathStatus("Ignoring", path, parent_path);
                 }
-                exit_code.bad_input = true;
+                exit_code.err = true;
             },
             .modified => {
                 if (option_dry_run) {
@@ -296,6 +294,8 @@ fn processFileInner(io: std.Io, path: []const u8, parent_dir: std.Io.Dir, parent
                     try proc.write(&writer.interface);
                     try writer.interface.flush();
                     try af.replace(io);
+
+                    exit_code.modified_files += 1;
                 }
             },
             .up_to_date => {
@@ -321,7 +321,7 @@ fn printPathStatus(detail: []const u8, path: []const u8, parent_dir: []const u8)
 }
 
 fn printPathError(detail: []const u8, path: []const u8, parent_dir: []const u8) void {
-    exit_code.unknown = true;
+    exit_code.err = true;
     const joined = std.Io.Dir.path.join(globals.gpa, &.{ parent_dir, path }) catch return;
     defer globals.gpa.free(joined);
     stderr.print("{s}: {s}\n", .{ joined, detail }) catch {};
@@ -334,10 +334,11 @@ fn printUnexpectedPathError(where: []const u8, path: []const u8, parent_dir: []c
     defer globals.gpa.free(joined);
     stderr.print("{s}: Unexpected error {s}: {}\n", .{ joined, where, err }) catch {};
     stderr.flush() catch {};
+    exit_code.err = true;
 }
 
 fn shouldStopProcessing() bool {
-    return option_break_on_fail and (exit_code.unknown or exit_code.bad_input);
+    return option_break_on_fail and exit_code.err;
 }
 
 var check_option_args = true;
@@ -387,7 +388,7 @@ fn processLongOption(arg: []const u8, args: *std.process.Args.Iterator) !void {
             try processExtensionList(list);
         } else {
             try stderr.writeAll("Expected extension list after --extensions\n");
-            exit_code.bad_arg = true;
+            exit_code.err = true;
         }
     } else if (std.mem.startsWith(u8, arg, "--extensions=")) {
         try processExtensionList(arg["--extensions=".len..]);
@@ -396,7 +397,7 @@ fn processLongOption(arg: []const u8, args: *std.process.Args.Iterator) !void {
             depfile_path = try global_alloc.dupe(u8, path);
         } else {
             try stderr.writeAll("Expected input directory path after --depfile\n");
-            exit_code.bad_arg = true;
+            exit_code.err = true;
         }
     } else if (std.mem.startsWith(u8, arg, "--depfile=")) {
         depfile_path = try global_alloc.dupe(u8, arg["--depfile=".len..]);
@@ -411,11 +412,11 @@ fn processLongOption(arg: []const u8, args: *std.process.Args.Iterator) !void {
                 });
             } else {
                 try stderr.writeAll("Expected value after --set <key>\n");
-                exit_code.bad_arg = true;
+                exit_code.err = true;
             }
         } else {
             try stderr.writeAll("Expected global key after --set\n");
-            exit_code.bad_arg = true;
+            exit_code.err = true;
         }
     } else if (std.mem.eql(u8, arg, "--eval")) {
         if (args.next()) |str| {
@@ -423,11 +424,11 @@ fn processLongOption(arg: []const u8, args: *std.process.Args.Iterator) !void {
             try eval_strings.append(dupe_str);
         } else {
             try stderr.writeAll("Expected string to evaluate after --eval\n");
-            exit_code.bad_arg = true;
+            exit_code.err = true;
         }
     } else {
         try stderr.print("Unrecognized option: {s}\n", .{arg});
-        exit_code.bad_arg = true;
+        exit_code.err = true;
     }
     try stderr.flush();
 }
@@ -453,14 +454,14 @@ fn processShortOption(c: u8, args: *std.process.Args.Iterator) !void {
             } else {
                 try stderr.writeAll("Expected extension list after -x\n");
                 try stderr.flush();
-                exit_code.bad_arg = true;
+                exit_code.err = true;
             }
         },
         else => {
             const option = [_]u8{c};
             try stderr.print("Unrecognized option: -{s}\n", .{option});
             try stderr.flush();
-            exit_code.bad_arg = true;
+            exit_code.err = true;
         },
     }
 }

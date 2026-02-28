@@ -196,59 +196,46 @@ pub fn composePathWindows(allocator: Allocator, paths: []const []const u8, sep: 
     }
 }
 
-pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8) ![]u8 {
+pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8) std.mem.Allocator.Error![]u8 {
     if (paths.len == 0) {
-        var result: []u8 = try allocator.alloc(u8, 1);
-        result[0] = '.';
-        return result;
+        return allocator.dupe(u8, ".");
     }
 
     const separator = if (sep == 0) '/' else sep;
 
-    var first_index: usize = 0;
-    var have_abs = false;
-    var max_size: usize = 0;
-    for (paths, 0..) |p, i| {
+    var result: std.ArrayList(u8) = .empty;
+    defer result.deinit(allocator);
+
+    var is_abs = false;
+
+    for (paths) |p| {
         if (std.Io.Dir.path.isAbsolutePosix(p)) {
-            first_index = i;
-            have_abs = true;
-            max_size = 0;
+            is_abs = true;
+            result.clearRetainingCapacity();
         }
-        max_size += p.len + 1;
-    }
-
-    var result: []u8 = undefined;
-    var result_index: usize = 0;
-
-    result = try allocator.alloc(u8, max_size);
-    errdefer allocator.free(result);
-
-    for (paths[first_index..]) |p| {
-        var it = std.mem.tokenize(u8, p, "/");
+        var it = std.mem.tokenizeScalar(u8, p, '/');
         while (it.next()) |component| {
             if (std.mem.eql(u8, component, ".")) {
                 continue;
+            } else if (result.items.len > 0 or is_abs) {
+                try result.ensureUnusedCapacity(1 + component.len);
+                result.appendAssumeCapacity(separator);
+                result.appendSliceAssumeCapacity(component);
             } else {
-                if (have_abs or result_index > 0) {
-                    result[result_index] = separator;
-                    result_index += 1;
-                }
-                @memcpy(result[result_index..].ptr, component);
-                result_index += component.len;
+                try result.appendSlice(component);
             }
         }
     }
 
-    if (result_index == 0) {
-        if (have_abs) {
-            result[0] = separator;
+    if (result.items.len == 0) {
+        if (is_abs) {
+            return allocator.dupe(u8, &.{ separator });
         } else {
-            result[0] = '.';
+            return allocator.dupe(u8, ".");
         }
-        result_index += 1;
     }
 
-    return allocator.shrink(result, result_index);
+    return result.toOwnedSlice();
 }
 
 /// If 'path' is a subpath of 'ancestor', returns the subpath portion.
