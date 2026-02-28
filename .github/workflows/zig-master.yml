@@ -15,4 +15,5 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: master
-      - run: zig build test
+      - run: zig build install test
+      - run: zig-out/bin/limp -R stage
