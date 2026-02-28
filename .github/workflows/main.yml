@@ -15,4 +15,4 @@ jobs:
           version: latest
       - run: zig build -Dtarget=x86_64-windows
       - run: zig build install test
-      - run: zig-out/bin/limp -R stage
+      - run: zig-out/bin/limp-debug -R stage
