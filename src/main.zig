@@ -329,12 +329,11 @@ fn printPathError(detail: []const u8, path: []const u8, parent_dir: []const u8) 
 }
 
 fn printUnexpectedPathError(where: []const u8, path: []const u8, parent_dir: []const u8, err: anyerror) void {
-    defer exit_code.unknown = true;
+    exit_code.err = true;
     const joined = std.Io.Dir.path.join(globals.gpa, &.{ parent_dir, path }) catch return;
     defer globals.gpa.free(joined);
     stderr.print("{s}: Unexpected error {s}: {}\n", .{ joined, where, err }) catch {};
     stderr.flush() catch {};
-    exit_code.err = true;
 }
 
 fn shouldStopProcessing() bool {

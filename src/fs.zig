@@ -218,11 +218,11 @@ pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8
             if (std.mem.eql(u8, component, ".")) {
                 continue;
             } else if (result.items.len > 0 or is_abs) {
-                try result.ensureUnusedCapacity(1 + component.len);
+                try result.ensureUnusedCapacity(allocator, 1 + component.len);
                 result.appendAssumeCapacity(separator);
                 result.appendSliceAssumeCapacity(component);
             } else {
-                try result.appendSlice(component);
+                try result.appendSlice(allocator, component);
             }
         }
     }
@@ -235,7 +235,7 @@ pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8
         }
     }
 
-    return result.toOwnedSlice();
+    return result.toOwnedSlice(allocator);
 }
 
 /// If 'path' is a subpath of 'ancestor', returns the subpath portion.
