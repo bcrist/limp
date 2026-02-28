@@ -133,7 +133,7 @@ fn run(io: std.Io, args: std.process.Args) !void {
     }
 
     var root_path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const root_path_bytes = try std.Io.Dir.cwd().realPath(io, &root_path_buf);
+    const root_path_bytes = try std.process.currentPath(io, &root_path_buf);
     const root_path = root_path_buf[0..root_path_bytes];
     
     var root_dir = try std.Io.Dir.cwd().openDir(io, root_path, .{});

@@ -1,7 +1,7 @@
 .{
     .name = .limp,
     .fingerprint = 0x97e403decf2c0046,
-    .version = "0.2.15",
+    .version = "0.2.16",
     .minimum_zig_version = "0.16.0-dev.2626+0e3c6514a",
     .paths = .{
         "lua",
