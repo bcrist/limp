@@ -6,12 +6,12 @@
     .paths = .{""},
     .dependencies = .{
         .Temp_Allocator = .{
-            .url = "git+https://github.com/bcrist/zig-tempallocator#88164409c68f1b766df08d93728f1ff62929be71",
-            .hash = "Temp_Allocator-1.0.3-tT3p3OQwAADyXdF18H0zjXuId3fPBjPUN-DK5glT4DQr",
+            .url = "git+https://github.com/bcrist/zig-tempallocator#93564919fd0920a805717398283e53ebbcdd0a67",
+            .hash = "Temp_Allocator-1.0.4-tT3p3NsxAABo7Tjdl7ZgD6zu_-E9SuokqOzUNxaZ-TDC",
         },
         .sx = .{
-            .url = "git+https://github.com/bcrist/zig-sx#ba72271b89ec977abe63a2619d78275ad6327bdd",
-            .hash = "sx-1.1.6-0vgbao7JAADRoEBKC_iS9RBg2onrsLD-yeUiM_XuqStj",
+            .url = "git+https://github.com/bcrist/zig-sx#15f63955c8a1c81efb8c74876099a74f7a7c10ef",
+            .hash = "sx-1.1.8-0vgbavzRAAAMCYztSRXLrwxYzRDU2Ml45KZXtPp5L9YO",
         },
     },
 }

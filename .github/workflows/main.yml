@@ -13,5 +13,6 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: latest
+      - run: zig build -Dtarget=x86_64-windows
       - run: zig build install test
       - run: zig-out/bin/limp -R stage
