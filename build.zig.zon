@@ -3,7 +3,13 @@
     .fingerprint = 0x97e403decf2c0046,
     .version = "0.2.12",
     .minimum_zig_version = "0.15.1",
-    .paths = .{""},
+    .paths = .{
+        "lua",
+        "src",
+        "build.zig",
+        "build.zig.zon",
+        "license",
+    },
     .dependencies = .{
         .Temp_Allocator = .{
             .url = "git+https://github.com/bcrist/zig-tempallocator#93564919fd0920a805717398283e53ebbcdd0a67",
