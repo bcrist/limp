@@ -31,8 +31,8 @@ pub const Processor = struct {
     limp_tokens: languages.LangTokens,
     file_path: []const u8,
     file_contents: []const u8,
-    parsed_sections: std.ArrayListUnmanaged(Section),
-    processed_sections: std.ArrayListUnmanaged(Section),
+    parsed_sections: std.ArrayList(Section),
+    processed_sections: std.ArrayList(Section),
 
     pub fn init(comment_tokens: languages.LangTokens, limp_tokens: languages.LangTokens) Processor {
         return Processor{
@@ -40,8 +40,8 @@ pub const Processor = struct {
             .limp_tokens = limp_tokens,
             .file_path = &[_]u8{},
             .file_contents = &[_]u8{},
-            .parsed_sections = std.ArrayListUnmanaged(Section){},
-            .processed_sections = std.ArrayListUnmanaged(Section){},
+            .parsed_sections = .empty,
+            .processed_sections = .empty,
         };
     }
 

@@ -78,11 +78,11 @@ pub fn add(extension: []const u8, opener: []const u8, closer: []const u8, line_p
 
 const Parser = struct {
     allocator: std.mem.Allocator,
-    extension: std.ArrayListUnmanaged(u8),
-    opener: std.ArrayListUnmanaged(u8),
-    closer: std.ArrayListUnmanaged(u8),
-    prefix: std.ArrayListUnmanaged(u8),
-    line: std.ArrayListUnmanaged(u8),
+    extension: std.ArrayList(u8),
+    opener: std.ArrayList(u8),
+    closer: std.ArrayList(u8),
+    prefix: std.ArrayList(u8),
+    line: std.ArrayList(u8),
     state: State = State.extension,
     error_on_line: bool = false,
     verbose: bool = false,
@@ -92,11 +92,11 @@ const Parser = struct {
         const allocator = temp_arena.allocator();
         return Parser{
             .allocator = allocator,
-            .extension = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 16),
-            .opener = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 16),
-            .closer = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 16),
-            .prefix = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 16),
-            .line = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 256),
+            .extension = try .initCapacity(allocator, 16),
+            .opener = try .initCapacity(allocator, 16),
+            .closer = try .initCapacity(allocator, 16),
+            .prefix = try .initCapacity(allocator, 16),
+            .line = try .initCapacity(allocator, 256),
             .verbose = verbose,
         };
     }

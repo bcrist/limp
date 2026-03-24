@@ -206,8 +206,8 @@ fn fsResolvePath(l: L) callconv(.c) c_int {
             var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
             const n = std.process.currentPath(globals.io, &buf) catch |err| switch (err) {
                 error.NameTooLong => unreachable,
-                else => |err| {
-                    _ = c.luaL_error(l, fs.errorName(err).ptr);
+                else => |e| {
+                    _ = c.luaL_error(l, fs.errorName(e).ptr);
                     unreachable;
                 },
             };

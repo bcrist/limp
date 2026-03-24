@@ -246,7 +246,7 @@ fn processFileInner(io: std.Io, path: []const u8, parent_dir: std.Io.Dir, parent
         }
     };
 
-    var old_file_stat = try parent_dir.statFile(io, path, .{ .follow_symlinks = true });
+    const old_file_stat = try parent_dir.statFile(io, path, .{ .follow_symlinks = true });
 
     if (!option_quiet and old_file_contents.len >= 2) {
         if (std.mem.eql(u8, old_file_contents[0..2], "\xFF\xFE") or std.mem.eql(u8, old_file_contents[0..2], "\xFE\xFF")) {
