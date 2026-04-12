@@ -12,7 +12,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = .Debug, // translate-c fails on windows for ReleaseSafe
         .link_libc = true,
-        .use_clang = true,
     });
     lua_translate_c.defineCMacro("LUA_EXTRASPACE", lua_extraspace);
 
