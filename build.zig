@@ -1,7 +1,7 @@
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardOptimizeOption(.{});
-    const exe_name = if (mode == .Debug) "limp-debug" else "limp";
+    const exe_name = if (mode == .Debug) "limp-debug" else b.fmt("limp-{t}-{t}", .{ target.result.cpu.arch, target.result.os.tag });
 
     const version: std.SemanticVersion = std.SemanticVersion.parse(zon.version) catch @panic("bad version string");
 
