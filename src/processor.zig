@@ -344,7 +344,7 @@ pub const Processor = struct {
 
         for (1.., eval_strings) |num, eval_string| {
             var name_buf: [32]u8 = undefined;
-            const name = try std.fmt.bufPrintZ(&name_buf, "--eval #{d}", .{ num });
+            const name = try std.fmt.bufPrintSentinel(&name_buf, "--eval #{d}", .{ num }, 0);
             try l.execute(eval_string, name);
         }
 
