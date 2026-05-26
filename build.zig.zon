@@ -1,8 +1,8 @@
 .{
     .name = .limp,
     .fingerprint = 0x97e403decf2c0046,
-    .version = "0.2.17",
-    .minimum_zig_version = "0.16.0",
+    .version = "0.2.18",
+    .minimum_zig_version = "0.17.0-dev.619+f3a7a4c5e",
     .paths = .{
         "lua",
         "src",

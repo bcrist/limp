@@ -66,9 +66,7 @@ pub fn build(b: *std.Build) void {
     var run = b.addRunArtifact(exe);
     run.step.dependOn(b.getInstallStep());
     b.step("run", "run limp").dependOn(&run.step);
-    if (b.args) |args| {
-        run.addArgs(args);
-    }
+    run.addPassthruArgs();
 
     const tests = b.addTest(.{
         .root_module = b.createModule(.{
