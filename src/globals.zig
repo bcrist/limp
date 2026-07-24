@@ -7,7 +7,7 @@ pub const Temp_Allocator = @import("Temp_Allocator");
 
 var debug_alloc = std.heap.DebugAllocator(.{}) {};
 
-pub const gpa: std.mem.Allocator = if (@import("builtin").mode == .Debug) debug_alloc.allocator() else std.heap.smp_allocator;
+pub const gpa: std.mem.Allocator = if (@import("builtin").mode == .debug) debug_alloc.allocator() else std.heap.smp_allocator;
 
 // Never freed until exit
 pub var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);

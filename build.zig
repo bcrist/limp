@@ -2,7 +2,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardOptimizeOption(.{});
     const exe_name: []const u8 = b.option([]const u8, "artifact_name", "Use a custom name for the output executable")
-        orelse if (mode == .Debug) "limp-debug" else b.fmt("limp-{t}-{t}", .{ target.result.cpu.arch, target.result.os.tag });
+        orelse if (mode == .debug) "limp-debug" else b.fmt("limp-{t}-{t}", .{ target.result.cpu.arch, target.result.os.tag });
 
     const version: std.SemanticVersion = std.SemanticVersion.parse(zon.version) catch @panic("bad version string");
 
@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) void {
     const lua_translate_c = b.addTranslateC(.{
         .root_source_file = b.path("lua/headers.h"),
         .target = target,
-        .optimize = .Debug, // translate-c fails on windows for ReleaseSafe
+        .optimize = .debug, // translate-c fails on windows for ReleaseSafe
         .link_libc = true,
     });
     lua_translate_c.defineCMacro("LUA_EXTRASPACE", lua_extraspace);
