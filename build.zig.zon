@@ -2,7 +2,7 @@
     .name = .limp,
     .fingerprint = 0x97e403decf2c0046,
     .version = "0.2.19",
-    .minimum_zig_version = "0.17.0-dev.1465+8b2d0ce21",
+    .minimum_zig_version = "0.17.0",
     .paths = .{
         "lua",
         "src",
@@ -12,12 +12,12 @@
     },
     .dependencies = .{
         .Temp_Allocator = .{
-            .url = "git+https://codeberg.org/bcrist/zig-tempallocator#2992f0dbf356ca9341ad595ab9390ad2a7aed3d8",
-            .hash = "Temp_Allocator-1.1.0-tT3p3Cg7AACYwqsy6Y64tEhmJbfkZPGd_PlCuKVWjc9S",
+            .url = "git+https://codeberg.org/bcrist/zig-tempallocator#75f67724a8a79ff57f93606385f280ee260c0f88",
+            .hash = "Temp_Allocator-1.2.1-tT3p3FNPAADSDF24Ply7XloHNoGgB4e9UyC4wc188yul",
         },
         .sx = .{
-            .url = "git+https://codeberg.org/bcrist/zig-sx#1fd3d1d2e79ff04d866191fd5021f0187b9426fc",
-            .hash = "sx-1.2.1-0vgbanLYAAB7fetrpL29eq7qwrZrDMHgLdP4qqThJvJa",
+            .url = "git+https://codeberg.org/bcrist/zig-sx#0987bcd46249f062da4d3c1cb15f4002440ca0f4",
+            .hash = "sx-1.2.2-0vgbahfZAACq6faou7x-sBjX4ykRVPxPKB0Am9p2JC_L",
         },
     },
 }
