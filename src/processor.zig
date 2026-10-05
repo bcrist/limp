@@ -93,7 +93,7 @@ pub const Processor = struct {
                 }
             } else {
                 if (num_lf == 0 and num_cr == 0 and num_crlf == 0) {
-                    return if (builtin.os.tag == .windows) "\r\n" else "\n";
+                    return if (builtin.target.os.tag == .windows) "\r\n" else "\n";
                 } else if (num_lf >= num_cr) {
                     if (num_lf >= num_crlf) {
                         return "\n";

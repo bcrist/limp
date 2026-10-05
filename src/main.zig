@@ -30,10 +30,10 @@ var option_dry_run = false;
 var option_break_on_fail = false;
 
 var depfile_path: ?[]const u8 = null;
-var input_paths = std.array_list.Managed([]const u8).init(global_alloc);
-var extensions = std.StringHashMap(void).init(global_alloc);
-var eval_strings = std.array_list.Managed([]const u8).init(global_alloc);
-var assignments = std.array_list.Managed(Assignment).init(global_alloc);
+var input_paths: std.ArrayList([]const u8) = .empty;
+var extensions: std.StringHashMapUnmanaged(void) = .empty;
+var eval_strings: std.ArrayList([]const u8) = .empty;
+var assignments: std.ArrayList(Assignment) = .empty;
 
 pub const Assignment = struct {
     key: []const u8,
@@ -127,7 +127,7 @@ fn run(io: std.Io, args: std.process.Args) !void {
         var it = languages.langs.keyIterator();
         while (it.next()) |ext| {
             if (ext.*.len > 0 and !std.mem.eql(u8, ext.*, "!!")) {
-                try extensions.put(ext.*, {});
+                try extensions.put(global_alloc, ext.*, {});
             }
         }
     }
@@ -355,7 +355,7 @@ fn processArg(arg: []const u8, args: *std.process.Args.Iterator) !void {
     }
 
     const path = try global_alloc.dupe(u8, arg);
-    try input_paths.append(path);
+    try input_paths.append(global_alloc, path);
 }
 
 fn processLongOption(arg: []const u8, args: *std.process.Args.Iterator) !void {
@@ -405,7 +405,7 @@ fn processLongOption(arg: []const u8, args: *std.process.Args.Iterator) !void {
             const dupe_key = try global_alloc.dupe(u8, key);
             if (args.next()) |value| {
                 const dupe_value = try global_alloc.dupe(u8, value);
-                try assignments.append(.{
+                try assignments.append(global_alloc, .{
                     .key = dupe_key,
                     .value = dupe_value,
                 });
@@ -420,7 +420,7 @@ fn processLongOption(arg: []const u8, args: *std.process.Args.Iterator) !void {
     } else if (std.mem.eql(u8, arg, "--eval")) {
         if (args.next()) |str| {
             const dupe_str = try global_alloc.dupe(u8, str);
-            try eval_strings.append(dupe_str);
+            try eval_strings.append(global_alloc, dupe_str);
         } else {
             try stderr.writeAll("Expected string to evaluate after --eval\n");
             exit_code.err = true;
@@ -469,6 +469,6 @@ fn processExtensionList(list: []const u8) !void {
     var it = std.mem.splitScalar(u8, list, ',');
     while (it.next()) |raw_ext| {
         const ext = try if (raw_ext.len <= 128) std.ascii.allocLowerString(global_alloc, raw_ext) else global_alloc.dupe(u8, raw_ext);
-        try extensions.put(ext, {});
+        try extensions.put(global_alloc, ext, {});
     }
 }
