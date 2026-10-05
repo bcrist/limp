@@ -19,5 +19,9 @@
             .url = "git+https://codeberg.org/bcrist/zig-sx#0987bcd46249f062da4d3c1cb15f4002440ca0f4",
             .hash = "sx-1.2.2-0vgbahfZAACq6faou7x-sBjX4ykRVPxPKB0Am9p2JC_L",
         },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c#875969d3493e245e01bf5d7860f792d8f3eb9ef5",
+            .hash = "translate_c-0.0.0-Q_BUWoFOBwAhz77Zd15HCVuhTKzdUKc94kezmCeJ7IC_",
+        },
     },
 }

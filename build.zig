@@ -1,33 +1,32 @@
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const mode = b.standardOptimizeOption(.{});
+    const optimize = b.standardOptimizeOption(.{});
     const exe_name: []const u8 = b.option([]const u8, "artifact_name", "Use a custom name for the output executable")
-        orelse if (mode == .debug) "limp-debug" else b.fmt("limp-{t}-{t}", .{ target.result.cpu.arch, target.result.os.tag });
+        orelse if (optimize == .debug) "limp-debug" else b.fmt("limp-{t}-{t}", .{ target.result.cpu.arch, target.result.os.tag });
 
     const version: std.SemanticVersion = std.SemanticVersion.parse(zon.version) catch @panic("bad version string");
 
     const lua_extraspace = b.fmt("{}", .{ @sizeOf(Temp_Allocator) });
 
-    const lua_translate_c = b.addTranslateC(.{
-        .root_source_file = b.path("lua/headers.h"),
+    const lua_c: translate_c.Translator = .init(b.dependency("translate_c", .{}), .{
+        .c_source_file = b.path("lua/headers.h"),
         .target = target,
-        .optimize = .debug, // translate-c fails on windows for ReleaseSafe
-        .link_libc = true,
+        .optimize = optimize,
     });
-    lua_translate_c.defineCMacro("LUA_EXTRASPACE", lua_extraspace);
+
 
     const exe = b.addExecutable(.{
         .name = exe_name,
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
-            .optimize = mode,
+            .optimize = optimize,
             .link_libc = true,
             .imports = &.{
                 .{ .name = "Temp_Allocator", .module = b.dependency("Temp_Allocator", .{}).module("Temp_Allocator") },
                 .{ .name = "sx", .module = b.dependency("sx", .{}).module("sx") },
                 .{ .name = "zon", .module = b.createModule(.{ .root_source_file = b.path("build.zig.zon") }), },
-                .{ .name = "lua_c", .module = lua_translate_c.createModule() },
+                .{ .name = "lua_c", .module = lua_c.mod },
             },
         }),
         .version = version,
@@ -72,7 +71,7 @@ pub fn build(b: *std.Build) void {
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
-            .optimize = mode,
+            .optimize = optimize,
         }),
     });
     b.step("test", "test limp").dependOn(&b.addRunArtifact(tests).step);
@@ -80,4 +79,5 @@ pub fn build(b: *std.Build) void {
 
 const zon = @import("build.zig.zon");
 const Temp_Allocator = @import("Temp_Allocator").Temp_Allocator;
+const translate_c = @import("translate_c");
 const std = @import("std");
