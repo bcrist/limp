@@ -15,7 +15,7 @@ pub export fn registerSExprLib(l: L) c_int {
 }
 
 fn openSx(l: L) callconv(.c) c_int {
-    var parser_funcs = [_]c.luaL_Reg {
+    var parser_funcs = [_]c.luaL_Reg{
         .{ .name = "__gc", .func = parser__gc },
         .{ .name = "open", .func = parser_open },
         .{ .name = "close", .func = parser_close },
@@ -50,7 +50,7 @@ fn openSx(l: L) callconv(.c) c_int {
     c.lua_pushvalue(l, -2);
     c.lua_callk(l, 1, 0, 0, null);
 
-    var funcs = [_]c.luaL_Reg {
+    var funcs = [_]c.luaL_Reg{
         .{ .name = "parser", .func = sexprParser },
         .{ .name = null, .func = null },
     };
@@ -167,7 +167,7 @@ fn parser_expression(l: L) callconv(.c) c_int {
 
 fn parser_string(l: L) callconv(.c) c_int {
     var parser: *Parser = @ptrCast(@alignCast(c.luaL_checkudata(l, 1, "class SxParser")));
-     if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
+    if (c.lua_gettop(l) >= 2 and !c.lua_isnil(l, 2)) {
         var expected: []const u8 = undefined;
         expected.ptr = c.luaL_checklstring(l, 2, &expected.len);
 

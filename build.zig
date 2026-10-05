@@ -1,19 +1,17 @@
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const exe_name: []const u8 = b.option([]const u8, "artifact_name", "Use a custom name for the output executable")
-        orelse if (optimize == .debug) "limp-debug" else b.fmt("limp-{t}-{t}", .{ target.result.cpu.arch, target.result.os.tag });
+    const exe_name: []const u8 = b.option([]const u8, "artifact_name", "Use a custom name for the output executable") orelse if (optimize == .debug) "limp-debug" else b.fmt("limp-{t}-{t}", .{ target.result.cpu.arch, target.result.os.tag });
 
     const version: std.SemanticVersion = std.SemanticVersion.parse(zon.version) catch @panic("bad version string");
 
-    const lua_extraspace = b.fmt("{}", .{ @sizeOf(Temp_Allocator) });
+    const lua_extraspace = b.fmt("{}", .{@sizeOf(Temp_Allocator)});
 
     const lua_c: translate_c.Translator = .init(b.dependency("translate_c", .{}), .{
         .c_source_file = b.path("lua/headers.h"),
         .target = target,
         .optimize = optimize,
     });
-
 
     const exe = b.addExecutable(.{
         .name = exe_name,
@@ -25,7 +23,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "Temp_Allocator", .module = b.dependency("Temp_Allocator", .{}).module("Temp_Allocator") },
                 .{ .name = "sx", .module = b.dependency("sx", .{}).module("sx") },
-                .{ .name = "zon", .module = b.createModule(.{ .root_source_file = b.path("build.zig.zon") }), },
+                .{ .name = "zon", .module = b.createModule(.{ .root_source_file = b.path("build.zig.zon") }) },
                 .{ .name = "lua_c", .module = lua_c.mod },
             },
         }),
@@ -34,6 +32,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addIncludePath(b.path("lua/"));
     exe.root_module.addCMacro("LUA_EXTRASPACE", lua_extraspace);
 
+    // zig fmt: off
     const lua_c_files = [_][]const u8{
         "lapi.c",    "lcode.c",    "lctype.c",   "ldebug.c",
         "ldo.c",     "ldump.c",    "lfunc.c",    "lgc.c",
@@ -45,6 +44,7 @@ pub fn build(b: *std.Build) void {
         "liolib.c",  "lmathlib.c", "loadlib.c",  "loslib.c",
         "lstrlib.c", "ltablib.c",  "lutf8lib.c", "linit.c",
     };
+    // zig fmt: on
 
     const c_flags = [_][]const u8{
         "-std=c99",

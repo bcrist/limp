@@ -40,7 +40,7 @@ pub const Assignment = struct {
     value: []const u8,
 };
 
-const ExitCode = packed struct (u8) {
+const ExitCode = packed struct(u8) {
     modified_files: u7 = 0,
     err: bool = false,
 };
@@ -92,8 +92,8 @@ fn run(io: std.Io, args: std.process.Args) !void {
     }
 
     if (option_show_version) {
-        try stdout.print("LIMP {s} Copyright (C) 2011-2026 Benjamin M. Crist\n", .{ @import("zon").version });
-        try stdout.print("{s}\n", .{ lua.c.LUA_COPYRIGHT });
+        try stdout.print("LIMP {s} Copyright (C) 2011-2026 Benjamin M. Crist\n", .{@import("zon").version});
+        try stdout.print("{s}\n", .{lua.c.LUA_COPYRIGHT});
         try stdout.print("zig {s} {s}", .{
             @import("builtin").zig_version_string,
             @tagName(@import("builtin").mode),
@@ -135,7 +135,7 @@ fn run(io: std.Io, args: std.process.Args) !void {
     var root_path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const root_path_bytes = try std.process.currentPath(io, &root_path_buf);
     const root_path = root_path_buf[0..root_path_bytes];
-    
+
     var root_dir = try std.Io.Dir.cwd().openDir(io, root_path, .{});
     defer root_dir.close(io);
 

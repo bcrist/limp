@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 
 pub const Temp_Allocator = @import("Temp_Allocator");
 
-var debug_alloc = std.heap.DebugAllocator(.{}) {};
+var debug_alloc = std.heap.DebugAllocator(.{}){};
 
 pub const gpa: std.mem.Allocator = if (@import("builtin").mode == .debug) debug_alloc.allocator() else std.heap.smp_allocator;
 

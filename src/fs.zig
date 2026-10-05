@@ -229,7 +229,7 @@ pub fn composePathPosix(allocator: Allocator, paths: []const []const u8, sep: u8
 
     if (result.items.len == 0) {
         if (is_abs) {
-            return allocator.dupe(u8, &.{ separator });
+            return allocator.dupe(u8, &.{separator});
         } else {
             return allocator.dupe(u8, ".");
         }

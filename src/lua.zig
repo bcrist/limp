@@ -24,7 +24,7 @@ pub const State = struct {
         const l = c.luaL_newstate();
         errdefer c.lua_close(l);
         getTempAlloc(l).* = try globals.Temp_Allocator.init(100 * 1024 * 1024);
-        return State {
+        return State{
             .l = l,
         };
     }
@@ -114,7 +114,7 @@ pub const State = struct {
     };
 
     pub fn pushTableString(self: State, table_index: c_int, slot: []const u8) !void {
-        var params = TableStringParams {
+        var params = TableStringParams{
             .slot = slot,
             .value = "",
         };
@@ -140,7 +140,7 @@ pub const State = struct {
     }
 
     pub fn setTableStringString(self: State, table_index: c_int, slot: []const u8, value: []const u8) !void {
-        var params = TableStringParams {
+        var params = TableStringParams{
             .slot = slot,
             .value = value,
         };

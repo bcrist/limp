@@ -307,7 +307,7 @@ fn fsStat(l: L) callconv(.c) c_int {
     path.ptr = c.luaL_checklstring(l, 1, &path.len);
 
     var exists = true;
-    var stat = std.Io.File.Stat {
+    var stat = std.Io.File.Stat{
         .inode = 0,
         .nlink = 0,
         .size = 0,
@@ -370,7 +370,7 @@ fn fsStat(l: L) callconv(.c) c_int {
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "mode");
-    c.lua_pushinteger(l, @intCast(@intFromEnum(stat.permissions)));
+    c.lua_pushinteger(l, @intCast(@backingInt(stat.permissions)));
     c.lua_rawset(l, 1);
 
     _ = c.lua_pushstring(l, "atime");
@@ -483,7 +483,7 @@ fn fsMove(l: L) callconv(.c) c_int {
             else => {
                 _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
-            }
+            },
         };
         if (exists) {
             _ = c.luaL_error(l, fs.errorName(error.PathAlreadyExists).ptr);
@@ -515,7 +515,7 @@ fn fsCopy(l: L) callconv(.c) c_int {
             else => {
                 _ = c.luaL_error(l, fs.errorName(err).ptr);
                 unreachable;
-            }
+            },
         };
         if (exists) {
             _ = c.luaL_error(l, fs.errorName(error.PathAlreadyExists).ptr);
@@ -554,7 +554,7 @@ fn fsDelete(l: L) callconv(.c) c_int {
         else => {
             _ = c.luaL_error(l, fs.errorName(deleteFileErr).ptr);
             unreachable;
-        }
+        },
     };
 
     return 0;
@@ -630,7 +630,6 @@ fn fsVisit(l: L) callconv(.c) c_int {
             }
         }
         walker.deinit();
-
     } else {
         var iter = dir.iterate();
         while (iter.next(globals.io) catch |err| {

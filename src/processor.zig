@@ -272,7 +272,9 @@ pub const Processor = struct {
                 }
             } else {
                 if (!root.option_quiet) {
-                    root.stderr.print("{s}: Found EOF before end of LIMP; possible file truncation?\n", .{ self.file_path, }) catch {};
+                    root.stderr.print("{s}: Found EOF before end of LIMP; possible file truncation?\n", .{
+                        self.file_path,
+                    }) catch {};
                     root.stderr.flush() catch {};
                 }
                 section.raw_program = remaining[opener_loc + limp_header.len ..];
@@ -344,7 +346,7 @@ pub const Processor = struct {
 
         for (1.., eval_strings) |num, eval_string| {
             var name_buf: [32]u8 = undefined;
-            const name = try std.fmt.bufPrintSentinel(&name_buf, "--eval #{d}", .{ num }, 0);
+            const name = try std.fmt.bufPrintSentinel(&name_buf, "--eval #{d}", .{num}, 0);
             try l.execute(eval_string, name);
         }
 
