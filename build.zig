@@ -5,12 +5,13 @@ pub fn build(b: *std.Build) void {
 
     const version: std.SemanticVersion = std.SemanticVersion.parse(zon.version) catch @panic("bad version string");
 
-    const lua_extraspace = b.fmt("{}", .{@sizeOf(Temp_Allocator)});
-
     const lua_c: translate_c.Translator = .init(b.dependency("translate_c", .{}), .{
         .c_source_file = b.path("lua/headers.h"),
         .target = target,
         .optimize = optimize,
+        .extra_args = &.{
+            b.fmt("-DLUA_EXTRASPACE={}", .{@sizeOf(Temp_Allocator)}),
+        },
     });
 
     const exe = b.addExecutable(.{
@@ -30,7 +31,7 @@ pub fn build(b: *std.Build) void {
         .version = version,
     });
     exe.root_module.addIncludePath(b.path("lua/"));
-    exe.root_module.addCMacro("LUA_EXTRASPACE", lua_extraspace);
+    exe.root_module.addCMacro("LUA_EXTRASPACE", b.fmt("{}", .{@sizeOf(Temp_Allocator)}));
 
     // zig fmt: off
     const lua_c_files = [_][]const u8{
